@@ -99,6 +99,31 @@ async def set_block_done(session: AsyncSession, student: Student, block_key: str
     await session.commit()
 
 
+async def list_attributes(session: AsyncSession, student_id: int) -> list[ProfileAttribute]:
+    """Подтверждённые/отредактированные атрибуты профиля."""
+    result = await session.scalars(
+        select(ProfileAttribute)
+        .where(
+            ProfileAttribute.student_id == student_id,
+            ProfileAttribute.status.in_(["confirmed", "edited"]),
+        )
+        .order_by(ProfileAttribute.block, ProfileAttribute.id)
+    )
+    return list(result.all())
+
+
+async def get_attribute(session: AsyncSession, attr_id: int) -> ProfileAttribute | None:
+    return await session.get(ProfileAttribute, attr_id)
+
+
+async def update_attribute_value(
+    session: AsyncSession, attr: ProfileAttribute, value: str
+) -> None:
+    attr.value = value[:500]
+    attr.status = "edited"
+    await session.commit()
+
+
 async def list_goals(session: AsyncSession, student_id: int) -> list[Goal]:
     result = await session.scalars(
         select(Goal).where(Goal.student_id == student_id).order_by(Goal.id)

@@ -73,3 +73,24 @@ def goal_draft_kb() -> InlineKeyboardMarkup:
     kb.button(text=texts.BTN_GOAL_CANCEL, callback_data="goaldraft:cancel")
     kb.adjust(3)
     return kb.as_markup()
+
+
+def profile_view_kb() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=texts.BTN_EDIT, callback_data="profile:edit")
+    kb.button(text=texts.BTN_HOME, callback_data="menu:home")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def profile_edit_list_kb(attributes) -> InlineKeyboardMarkup:
+    from app.domain.profile_schema import PROFILE_BLOCKS_BY_KEY
+
+    kb = InlineKeyboardBuilder()
+    for attr in attributes:
+        title = PROFILE_BLOCKS_BY_KEY[attr.block].title if attr.block in PROFILE_BLOCKS_BY_KEY else attr.block
+        label = f"{title}: {attr.value}"
+        kb.button(text=label[:60], callback_data=f"attredit:{attr.id}")
+    kb.button(text=texts.BTN_BACK, callback_data="menu:profile")
+    kb.adjust(1)
+    return kb.as_markup()

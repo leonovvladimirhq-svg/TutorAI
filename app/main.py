@@ -9,7 +9,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from app.bot.handlers import dialogue, fallback, goals, start
+from app.bot.handlers import dialogue, fallback, goals, profile, start
 from app.bot.middleware import DbSessionMiddleware
 from app.config import settings
 from app.db.seed import seed_profiles
@@ -28,6 +28,7 @@ def build_dispatcher() -> Dispatcher:
     dp.include_router(start.router)
     dp.include_router(dialogue.router)
     dp.include_router(goals.router)
+    dp.include_router(profile.router)
     dp.include_router(fallback.router)
     return dp
 

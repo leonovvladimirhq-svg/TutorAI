@@ -90,6 +90,20 @@ BTN_GOAL_SAVE = "✅ Сохранить"
 BTN_GOAL_EDIT = "✏️ Доработать"
 BTN_GOAL_CANCEL = "❌ Отмена"
 
+# Профиль (просмотр/редактирование)
+PROFILE_HEADER = "👤 <b>Ваш профиль</b>\n\n{attributes}\n\n🎯 <b>Цели:</b>\n{goals}"
+PROFILE_EMPTY = (
+    "👤 <b>Ваш профиль</b>\n\nПока пусто. Заполните профиль в разделе «Заполнить профиль» — "
+    "это займёт несколько минут."
+)
+PROFILE_NO_GOALS = "(целей пока нет)"
+CHOOSE_ATTR_TO_EDIT = "Какой пункт изменить?"
+NO_ATTRS_TO_EDIT = "Пока нечего редактировать — сначала заполните профиль."
+ASK_NEW_VALUE = "Введите новое значение для «{title} → {key}»:"
+ATTR_UPDATED = "✅ Обновлено."
+BTN_EDIT = "✏️ Изменить"
+BTN_BACK = "⬅️ Назад"
+
 SMART_LABELS_RU = {
     "specific": "конкретность",
     "measurable": "измеримость",
