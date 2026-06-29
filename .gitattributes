@@ -1,0 +1,9 @@
+# Шелл-скрипты всегда с LF (иначе ломается shebang в Linux-контейнере)
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+
+# Python — LF
+*.py text eol=lf
+
+# Docs/бинарники
+*.docx binary
