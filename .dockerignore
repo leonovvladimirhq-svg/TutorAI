@@ -1,0 +1,12 @@
+.venv/
+venv/
+.git/
+secrets/
+.env
+postgres-data/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.docx
+*.md
+!README.md
