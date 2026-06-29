@@ -97,8 +97,10 @@ async def goal_template(callback: CallbackQuery, session: AsyncSession, state: F
     await _make_and_show_draft(callback.message, session, state, student.id, intent)
 
 
-@router.message(Goals.chatting)
-async def goals_message(message: Message, session: AsyncSession, state: FSMContext) -> None:
+async def handle_goals_text(
+    message: Message, session: AsyncSession, state: FSMContext, raw_text: str
+) -> None:
+    """Обработать реплику в сценарии целей (из текста или голоса)."""
     student = await crud.get_student_by_tg(session, message.from_user.id)
     if student is None:
         await state.clear()
@@ -106,13 +108,18 @@ async def goals_message(message: Message, session: AsyncSession, state: FSMConte
         return
     data = await state.get_data()
     awaiting = data.get("awaiting")
-    text = (message.text or "").strip()
+    text = raw_text.strip()
 
     if awaiting == "own_title":
         await _make_and_show_draft(message, session, state, student.id, text)
     elif awaiting == "feedback":
         intent = data.get("intent") or text
         await _make_and_show_draft(message, session, state, student.id, intent, feedback=text)
+
+
+@router.message(Goals.chatting)
+async def goals_message(message: Message, session: AsyncSession, state: FSMContext) -> None:
+    await handle_goals_text(message, session, state, message.text or "")
 
 
 @router.callback_query(Goals.chatting, F.data == "goaldraft:save")

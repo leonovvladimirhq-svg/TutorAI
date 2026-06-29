@@ -86,8 +86,10 @@ async def _advance(message: Message, session: AsyncSession, state: FSMContext, s
         await _send_question(message, session, student.id, block_key)
 
 
-@router.message(Profiling.chatting)
-async def profiling_answer(message: Message, session: AsyncSession, state: FSMContext) -> None:
+async def handle_profiling_text(
+    message: Message, session: AsyncSession, state: FSMContext, text: str
+) -> None:
+    """Обработать реплику студента (из текста или распознанного голоса)."""
     student = await crud.get_student_by_tg(session, message.from_user.id)
     if student is None:
         await state.clear()
@@ -104,7 +106,7 @@ async def profiling_answer(message: Message, session: AsyncSession, state: FSMCo
             student.id,
             correction["block"],
             correction["key"],
-            (message.text or "").strip()[:500],
+            text.strip()[:500],
             correction.get("confidence", 0.7),
             data.get("source_ref"),
             status="edited",
@@ -115,11 +117,16 @@ async def profiling_answer(message: Message, session: AsyncSession, state: FSMCo
         return
 
     # обычный ответ студента
-    user_msg = await crud.add_message(session, student.id, "user", message.text or "")
-    facts = await profiler.extract_facts(message.text or "")
+    user_msg = await crud.add_message(session, student.id, "user", text)
+    facts = await profiler.extract_facts(text)
     if facts:
         await state.update_data(queue=facts, source_ref=user_msg.id)
     await _show_next_or_advance(message, session, state, student)
+
+
+@router.message(Profiling.chatting)
+async def profiling_answer(message: Message, session: AsyncSession, state: FSMContext) -> None:
+    await handle_profiling_text(message, session, state, message.text or "")
 
 
 @router.callback_query(Profiling.chatting, F.data == "cand:confirm")
