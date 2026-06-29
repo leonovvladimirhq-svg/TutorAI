@@ -65,8 +65,8 @@ python -m app.main
 Секреты (`.env`, `secrets/*.json`) **не коммитятся** (см. `.gitignore`).
 Токен бота и ключ сервисного аккаунта храните только локально.
 
-## Деплой на Yandex Cloud VM
+## Деплой
 
-См. раздел «Deployment» в плане. Кратко: `yc` → создать Compute VM (Ubuntu 22.04) →
-установить Docker → скопировать репозиторий + `secrets/` + `.env` → `docker compose up -d`.
-Домен не нужен (бот на long-polling).
+См. [DEPLOY.md](DEPLOY.md): запуск локально / на готовом сервере и развёртывание новой VM
+в Yandex Cloud. Домен не нужен (бот на long-polling). Перед запуском нужны `YC_FOLDER_ID`,
+`LLM_MODEL_URI` и роли сервисного аккаунта (AI Studio + SpeechKit).
