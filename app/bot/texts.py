@@ -61,3 +61,39 @@ CANDIDATE_CONFIRMED = "✅ Записал."
 CANDIDATE_SKIPPED = "Хорошо, пропустим."
 ASK_CORRECTION = "Напишите, пожалуйста, как будет правильно:"
 CORRECTION_SAVED = "✅ Поправил, спасибо."
+
+# Цели (SMART)
+GOALS_HEADER = "🎯 <b>Ваши цели</b>\n\n{body}"
+NO_GOALS = "У Вас пока нет целей. Давайте поставим первую — это займёт пару минут."
+GOAL_LINE = "• <b>{title}</b> — {status}{progress}{complete}"
+BTN_GOAL_NEW = "➕ Поставить цель"
+BTN_GOAL_OWN = "✍️ Своя цель"
+CHOOSE_GOAL_TEMPLATE = "С чего начнём? Выберите направление или сформулируйте свою цель:"
+ASK_OWN_GOAL = "Опишите свою цель своими словами — а я помогу оформить её по SMART:"
+GOAL_DRAFT = (
+    "Вот черновик цели по <b>SMART</b>:\n\n"
+    "🎯 <b>{title}</b>\n\n"
+    "<b>S</b> — конкретность: {specific}\n"
+    "<b>M</b> — измеримость: {measurable}\n"
+    "<b>A</b> — достижимость: {achievable}\n"
+    "<b>R</b> — значимость: {relevant}\n"
+    "<b>T</b> — срок: {time_bound}\n\n"
+    "Сохраняем?"
+)
+GOAL_DRAFTING = "Секунду, формулирую цель по SMART…"
+GOAL_DRAFT_FAILED = "Не удалось сформировать черновик. Попробуйте переформулировать цель."
+GOAL_SAVED = "✅ Цель сохранена! Я буду помогать Вам следить за прогрессом."
+GOAL_INCOMPLETE = "Не хватает компонентов SMART: {missing}. Уточните, пожалуйста:"
+ASK_GOAL_FEEDBACK = "Что хотите поправить в цели?"
+GOAL_CANCELLED = "Хорошо, отменяем."
+BTN_GOAL_SAVE = "✅ Сохранить"
+BTN_GOAL_EDIT = "✏️ Доработать"
+BTN_GOAL_CANCEL = "❌ Отмена"
+
+SMART_LABELS_RU = {
+    "specific": "конкретность",
+    "measurable": "измеримость",
+    "achievable": "достижимость",
+    "relevant": "значимость",
+    "time_bound": "срок",
+}

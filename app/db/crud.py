@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ConversationMessage, ProfileAttribute, Student
+from app.db.models import ConversationMessage, Goal, ProfileAttribute, Student
 
 
 async def get_student_by_tg(session: AsyncSession, telegram_id: int) -> Student | None:
@@ -97,3 +97,34 @@ async def set_block_done(session: AsyncSession, student: Student, block_key: str
     progress[block_key] = "done"
     student.profiling_progress = progress
     await session.commit()
+
+
+async def list_goals(session: AsyncSession, student_id: int) -> list[Goal]:
+    result = await session.scalars(
+        select(Goal).where(Goal.student_id == student_id).order_by(Goal.id)
+    )
+    return list(result.all())
+
+
+async def add_goal(
+    session: AsyncSession,
+    student_id: int,
+    draft: dict,
+    status: str = "active",
+    source_ref: int | None = None,
+) -> Goal:
+    goal = Goal(
+        student_id=student_id,
+        title=draft.get("title", "Цель")[:255],
+        specific=draft.get("specific"),
+        measurable=draft.get("measurable"),
+        achievable=draft.get("achievable"),
+        relevant=draft.get("relevant"),
+        time_bound=draft.get("time_bound"),
+        status=status,
+        source_ref=source_ref,
+    )
+    session.add(goal)
+    await session.commit()
+    await session.refresh(goal)
+    return goal
