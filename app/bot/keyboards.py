@@ -37,3 +37,12 @@ def home_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text=texts.BTN_HOME, callback_data="menu:home")
     return kb.as_markup()
+
+
+def candidate_kb() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=texts.BTN_CONFIRM, callback_data="cand:confirm")
+    kb.button(text=texts.BTN_CORRECT, callback_data="cand:correct")
+    kb.button(text=texts.BTN_SKIP, callback_data="cand:skip")
+    kb.adjust(3)
+    return kb.as_markup()

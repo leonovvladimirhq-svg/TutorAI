@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from aiogram import F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,6 +76,16 @@ async def check_password(message: Message, session: AsyncSession, state: FSMCont
     await state.clear()
     await log_event(session, student.id, "auth_success", {"label": student.profile_label})
     await message.answer(texts.AUTH_SUCCESS.format(label=student.profile_label))
+    await show_main_menu(message)
+
+
+@router.message(Command("menu"))
+async def cmd_menu(message: Message, session: AsyncSession, state: FSMContext) -> None:
+    student = await crud.get_student_by_tg(session, message.from_user.id)
+    if student is None or student.consent_at is None:
+        await message.answer(texts.NOT_AUTHED)
+        return
+    await state.clear()
     await show_main_menu(message)
 
 

@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import texts
+from app.bot.common import show_main_menu
 from app.db import crud
 
 router = Router(name="fallback")
@@ -22,3 +23,6 @@ async def any_message(message: Message, session: AsyncSession) -> None:
     student = await crud.get_student_by_tg(session, message.from_user.id)
     if student is None or student.consent_at is None:
         await message.answer(texts.NOT_AUTHED)
+        return
+    # авторизован, но вне активного сценария — показываем меню
+    await show_main_menu(message)
