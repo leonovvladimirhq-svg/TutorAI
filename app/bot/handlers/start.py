@@ -12,6 +12,7 @@ from app.bot.common import show_main_menu
 from app.bot.keyboards import consent_kb, main_menu_kb, profile_choice_kb
 from app.bot.states import Auth
 from app.db import crud
+from app.services import kpi
 from app.services.events import log_event
 from app.services.security import verify_password
 
@@ -87,6 +88,13 @@ async def cmd_menu(message: Message, session: AsyncSession, state: FSMContext) -
         return
     await state.clear()
     await show_main_menu(message)
+
+
+@router.message(Command("stats"))
+async def cmd_stats(message: Message, session: AsyncSession) -> None:
+    """Сводка KPI (для команды разработки)."""
+    data = await kpi.compute(session)
+    await message.answer(kpi.format_kpi(data))
 
 
 @router.callback_query(F.data == "menu:home")
