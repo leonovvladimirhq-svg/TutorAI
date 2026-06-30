@@ -163,10 +163,40 @@ yc resource-manager folder add-access-binding <FOLDER_ID> \
 
 ---
 
-## 8. Текущий статус
+## 8. Текущий статус — РАЗВЁРНУТО ✅
 
-- ✅ Код прототипа готов и в GitHub (`leonovvladimirhq-svg/TutorAI`): авторизация, профайлинг
-  (extract→confirm→commit), SMART-цели, просмотр/правка профиля, голосовой ввод, KPI.
-- ✅ Docker-образ собирается, стек поднимается, бот выходит в онлайн (проверено локально).
-- ⏳ Боевой запуск в облаке ждёт от администратора: **FOLDER_ID каталога «наставник AI»**,
-  **роли сервисного аккаунта** (см. §5) и **точное имя модели Qwen**.
+Бот **работает в облаке**: `@tutor_hse_ai_bot` на VM в Yandex Cloud, миграции и сид применены,
+LLM (Qwen3-235B-A22B-FP8) и распознавание речи подключены и проверены.
+
+**Фактические параметры развёртывания:**
+
+| Параметр | Значение |
+|----------|----------|
+| Модель (AI Studio) | `gpt://b1gvtru3guuc1oipcs4p/qwen3-235b-a22b-fp8/latest` |
+| Каталог AI Studio + SpeechKit | `b1gvtru3guuc1oipcs4p` (домашний каталог SA, `project2-chatbotdpo`) |
+| VM | `tutorai-bot`, ru-central1-a, standard-v3, 2 vCPU×50%, 4 ГБ, HDD 20 ГБ |
+| Каталог VM | `b1gvtru3guuc1oipcs4p` (там же, где AI Studio) |
+| Публичный IP | 51.250.94.31 |
+
+**Важные нюансы окружения (для администратора):**
+
+- Модель `qwen3-30b-a3b` в каталоге **недоступна** — используется доступная
+  `qwen3-235b-a22b-fp8`.
+- AI Studio принимает запросы только когда folder в URI = **домашний каталог сервисного
+  аккаунта** (`b1gvtru3guuc1oipcs4p`); каталоги `project4/project5` дают ошибку
+  «folder does not match service account folder». Поэтому AI-вызовы идут в домашний каталог.
+- VM пришлось создать в домашнем каталоге, потому что в `project5-nastavnik-ai` **квота
+  `vpc.subnets.count` = 0** (нельзя создать подсеть). Чтобы перенести VM в project5 —
+  поднимите квоту подсетей в этом каталоге (консоль → Квоты → VPC), затем пересоздадим VM там.
+
+### Управление ботом на VM
+
+```bash
+ssh yc-user@51.250.94.31
+cd /opt/tutorai
+sudo docker compose logs -f bot      # логи
+sudo docker compose restart bot      # перезапуск
+git pull && sudo docker compose up -d --build   # обновление
+```
+
+Автозапуск после перезагрузки VM обеспечен (`restart: unless-stopped` + включённый docker).
