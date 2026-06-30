@@ -154,10 +154,13 @@ yc resource-manager folder add-access-binding <FOLDER_ID> \
 
 ## 7. Секреты и безопасность
 
-- Секреты (`.env`, `secrets/sa-key.json`) **не хранятся в репозитории** (`.gitignore`).
-- Токен бота и ключ сервисного аккаунта передаются на VM отдельно (scp), не через git.
-- Рекомендация: после настройки **перевыпустить** токен бота (@BotFather) и ключ SA —
-  они ранее передавались в переписке.
+- Секреты (`.env` с `YC_API_KEY`, `secrets/sa-key.json`) **не хранятся в репозитории** (`.gitignore`).
+- В рантайме на VM нужен только `.env` (Api-Key). Приватный SA-ключ нужен лишь деплой-инструментам
+  (`yc` CLI) на машине разработчика — на VM его можно не держать.
+- Токен бота и Api-Key передаются на VM отдельно (scp), не через git.
+- Рекомендация: после настройки **перевыпустить** токен бота (@BotFather), Api-Key
+  (`yc iam api-key create`) и ключ SA — они передавались в переписке. Старый Api-Key отозвать:
+  `yc iam api-key delete aje5blmfp03kuc7r98ma`.
 - Обработка ПДн: при первом запуске бот показывает экран согласия; данные не покидают
   российский контур (Yandex Cloud, 152-ФЗ).
 
@@ -165,34 +168,49 @@ yc resource-manager folder add-access-binding <FOLDER_ID> \
 
 ## 8. Текущий статус — РАЗВЁРНУТО ✅
 
-Бот **работает в облаке**: `@tutor_hse_ai_bot` на VM в Yandex Cloud, миграции и сид применены,
-LLM (Qwen3-235B-A22B-FP8) и распознавание речи подключены и проверены.
+Бот **работает в облаке**: `@tutor_hse_ai_bot` на VM в Yandex Cloud (каталог
+`project5-nastavnik-ai`), миграции и сид применены, LLM (qwen3.6-35b-a3b) и распознавание
+речи подключены и проверены (getMe → 200, RestartCount 0).
 
-**Фактические параметры развёртывания:**
+**Фактические параметры развёртывания (обновлено 30.06.2026 — перенос в project5):**
 
 | Параметр | Значение |
 |----------|----------|
-| Модель (AI Studio) | `gpt://b1gvtru3guuc1oipcs4p/qwen3-235b-a22b-fp8/latest` |
+| Модель (AI Studio) | `gpt://b1gvtru3guuc1oipcs4p/qwen3.6-35b-a3b/latest` (reasoning-модель) |
+| Аутентификация AI | **Api-Key** SA (`Authorization: Api-Key …`), ключ `aje5blmfp03kuc7r98ma` |
 | Каталог AI Studio + SpeechKit | `b1gvtru3guuc1oipcs4p` (домашний каталог SA, `project2-chatbotdpo`) |
-| VM | `tutorai-bot`, ru-central1-a, standard-v3, 2 vCPU×50%, 4 ГБ, HDD 20 ГБ |
-| Каталог VM | `b1gvtru3guuc1oipcs4p` (там же, где AI Studio) |
-| Публичный IP | 51.250.94.31 |
+| VM | `tutorai-bot` (`fhmq87i303tfagr3tie9`), ru-central1-a, standard-v3, 2 vCPU×50%, 4 ГБ, HDD 20 ГБ |
+| Каталог VM | `b1g0emak4eh8q5t66vfn` (`project5-nastavnik-ai`) |
+| Сеть / подсеть VM | `enpc6teisrpproi4tn5c` / `e9bsraaf37ej054qsf8j` (10.128.0.0/24) |
+| Публичный IP | **89.169.131.23** |
 
 **Важные нюансы окружения (для администратора):**
 
-- Модель `qwen3-30b-a3b` в каталоге **недоступна** — используется доступная
-  `qwen3-235b-a22b-fp8`.
-- AI Studio принимает запросы только когда folder в URI = **домашний каталог сервисного
-  аккаунта** (`b1gvtru3guuc1oipcs4p`); каталоги `project4/project5` дают ошибку
-  «folder does not match service account folder». Поэтому AI-вызовы идут в домашний каталог.
-- VM пришлось создать в домашнем каталоге, потому что в `project5-nastavnik-ai` **квота
-  `vpc.subnets.count` = 0** (нельзя создать подсеть). Чтобы перенести VM в project5 —
-  поднимите квоту подсетей в этом каталоге (консоль → Квоты → VPC), затем пересоздадим VM там.
+- Модель — `qwen3.6-35b-a3b` (лёгкая A3B текущего поколения; `qwen3-30b-a3b` под этим именем
+  в каталоге нет). Это **reasoning-модель**: финальный ответ в `message.content`, цепочка
+  рассуждений в `message.reasoning_content`. «Мышление» тратит ~1.5к токенов сверх ответа →
+  `LLM_MAX_TOKENS` держим высоким (4000), иначе `content` приходит пустым (`finish_reason=length`).
+- **AI-вызовы (LLM + SpeechKit) аутентифицируются Api-Key сервисного аккаунта.** Один ключ
+  обслуживает оба сервиса (scopes `ai.languageModels` + `ai.speechkitStt`). Приватный SA-ключ
+  (JWT/IAM) в рантайме больше не нужен — на VM лежит только `.env` с `YC_API_KEY`.
+- AI Studio/SpeechKit принимают запросы только когда folder в URI = **домашний каталог
+  сервисного аккаунта** (`b1gvtru3guuc1oipcs4p`). Каталог `project5` для AI-вызовов этим SA
+  **недоступен** (ни с IAM, ни с Api-Key): «folder does not match service account folder» —
+  ограничение на домашний каталог, роли его не снимают. Чтобы перенести **биллинг AI** в
+  project5, нужен сервисный аккаунт, чей домашний каталог = project5 (тогда Api-Key от него).
+- VM теперь в **project5** на подсети `e9bsraaf37ej054qsf8j` (квоту подсетей босс поднял,
+  создал сеть+подсеть). Compute не зависит от AI-каталога, поэтому VM в project5, а AI-вызовы
+  в домашний каталог SA — это нормально.
+- ⚠️ **Telegram из сети YC доступен только по IPv4-адресу `149.154.167.220`** (канонический
+  IP `api.telegram.org`). DNS отдаёт и другие адреса Telegram (и IPv6), которые из этой сети
+  не маршрутизируются (RKN-фильтрация + нет IPv6-egress у one-to-one NAT) → бот висел и падал.
+  Фикс в `docker-compose.yml`: `extra_hosts: ["api.telegram.org:149.154.167.220"]` +
+  IPv4-коннектор в `app/main.py`. Если бот перестанет видеть Telegram — проверить, жив ли этот IP.
 
 ### Управление ботом на VM
 
 ```bash
-ssh yc-user@51.250.94.31
+ssh -i ~/.ssh/tutorai_ed25519 yc-user@89.169.131.23
 cd /opt/tutorai
 sudo docker compose logs -f bot      # логи
 sudo docker compose restart bot      # перезапуск

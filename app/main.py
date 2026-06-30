@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import socket
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -46,8 +48,13 @@ async def main() -> None:
     )
     await on_startup()
 
+    # api.telegram.org резолвится в IPv6, а у YC one-to-one NAT egress только по IPv4 →
+    # форсируем IPv4 в TCP-коннекторе, иначе запросы к Telegram виснут и бот падает.
+    session = AiohttpSession()
+    session._connector_init["family"] = socket.AF_INET
     bot = Bot(
         token=settings.telegram_bot_token,
+        session=session,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = build_dispatcher()

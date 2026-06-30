@@ -24,6 +24,11 @@ services:
       - .env
     volumes:
       - ./secrets:/secrets:ro
+    # Из сети YC (RKN-фильтрация egress) достижим только канонический IP api.telegram.org
+    # 149.154.167.220; DNS отдаёт и другие адреса Telegram, которые отсюда не маршрутизируются,
+    # а также IPv6 (egress по IPv6 у one-to-one NAT нет). Прибиваем имя к рабочему IPv4.
+    extra_hosts:
+      - "api.telegram.org:149.154.167.220"
 
 volumes:
   postgres-data:
