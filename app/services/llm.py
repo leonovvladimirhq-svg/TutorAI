@@ -1,6 +1,12 @@
 """Клиент Qwen через Yandex AI Studio (OpenAI-совместимый endpoint).
 
-Аутентификация — IAM-токеном (Bearer). Модель задаётся URI gpt://<folder>/qwen.../latest.
+Аутентификация — Api-Key сервисного аккаунта (OpenAI SDK шлёт его как `Authorization`).
+Модель задаётся URI gpt://<folder>/qwen.../latest.
+
+qwen3.6-35b-a3b — reasoning-модель: цепочка рассуждений приходит в нестандартном поле
+reasoning_content, а финальный ответ — в content. Нам нужен только content; рассуждения
+игнорируем. Если бюджета max_tokens не хватает, модель «застревает» в рассуждениях и
+возвращает content=None (finish_reason=length) — это логируем как предупреждение.
 """
 from __future__ import annotations
 
@@ -10,16 +16,15 @@ import logging
 from openai import AsyncOpenAI
 
 from app.config import settings
-from app.services.iam import get_iam_token
 
 logger = logging.getLogger(__name__)
 
 Message = dict[str, str]
 
 
-async def _client() -> AsyncOpenAI:
-    token = await get_iam_token()
-    return AsyncOpenAI(api_key=token, base_url=settings.llm_endpoint)
+def _client() -> AsyncOpenAI:
+    # Yandex принимает Api-Key как Bearer-совместимый ключ на OpenAI-эндпоинте.
+    return AsyncOpenAI(api_key=settings.yc_api_key, base_url=settings.llm_endpoint)
 
 
 async def chat(
@@ -28,15 +33,24 @@ async def chat(
     temperature: float | None = None,
     max_tokens: int | None = None,
 ) -> str:
-    """Вызов модели; возвращает текст ответа."""
-    client = await _client()
+    """Вызов модели; возвращает текст ответа (content)."""
+    client = _client()
     resp = await client.chat.completions.create(
         model=settings.model_uri,
         messages=messages,
         temperature=settings.llm_temperature if temperature is None else temperature,
         max_tokens=settings.llm_max_tokens if max_tokens is None else max_tokens,
     )
-    return (resp.choices[0].message.content or "").strip()
+    choice = resp.choices[0]
+    content = (choice.message.content or "").strip()
+    if not content:
+        # reasoning-модель не дошла до ответа — почти всегда упёрлась в лимит токенов
+        logger.warning(
+            "Пустой content от модели (finish_reason=%s). Поднимите max_tokens — "
+            "reasoning-модель израсходовала бюджет на рассуждения.",
+            choice.finish_reason,
+        )
+    return content
 
 
 def extract_json(text: str) -> dict | list | None:

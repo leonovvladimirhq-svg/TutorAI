@@ -9,20 +9,18 @@ import logging
 import httpx
 
 from app.config import settings
-from app.services.iam import get_iam_token
 
 logger = logging.getLogger(__name__)
 
 
 async def recognize(audio: bytes) -> str:
     """Распознать короткое аудио (<30с, <1МБ). Возвращает текст или пустую строку."""
-    token = await get_iam_token()
     params = {
         "topic": "general",
         "lang": settings.speechkit_lang,
         "folderId": settings.yc_folder_id,
     }
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {"Authorization": f"Api-Key {settings.yc_api_key}"}
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(

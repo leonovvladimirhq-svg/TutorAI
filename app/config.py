@@ -18,12 +18,21 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://tutorai:change_me@db:5432/tutorai"
 
     # Yandex Cloud / AI Studio
+    # Аутентификация — Api-Key сервисного аккаунта (Authorization: Api-Key <key>).
+    # Один ключ обслуживает и LLM, и SpeechKit. Приватный SA-ключ (JWT/IAM) в runtime
+    # больше не нужен — yc_sa_key_file остаётся только для деплой-инструментов (yc CLI).
+    yc_api_key: str = ""
     yc_sa_key_file: str = "/secrets/sa-key.json"
-    yc_folder_id: str = "CHANGE_ME"
+    # ВАЖНО: AI Studio и SpeechKit принимают запросы только в домашнем каталоге SA
+    # leonov-deployer (b1gvtru3guuc1oipcs4p). Каталог project5 для AI-вызовов недоступен
+    # этому SA (ограничение Яндекса на домашний каталог, роли его не снимают).
+    yc_folder_id: str = "b1gvtru3guuc1oipcs4p"
     llm_endpoint: str = "https://llm.api.cloud.yandex.net/v1"
-    llm_model_uri: str = "gpt://{folder}/qwen3-235b-a22b-fp8/latest"
+    # qwen3.6-35b-a3b — reasoning-модель: рассуждения в reasoning_content, ответ в content.
+    # Из-за «мышления» расходует ~1.5к токенов сверх ответа → max_tokens держим высоким.
+    llm_model_uri: str = "gpt://{folder}/qwen3.6-35b-a3b/latest"
     llm_temperature: float = 0.4
-    llm_max_tokens: int = 2000
+    llm_max_tokens: int = 4000
 
     # SpeechKit
     enable_voice: bool = True
