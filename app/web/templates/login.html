@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TutorAI — вход</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; background: #f4f2fa; margin: 0;
+           display: flex; min-height: 100vh; align-items: center; justify-content: center; }
+    .card { background: #fff; padding: 32px; border-radius: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.08);
+            width: 320px; }
+    h1 { font-size: 20px; margin: 0 0 4px; color: #5b4b9e; }
+    p.sub { margin: 0 0 20px; color: #888; font-size: 13px; }
+    label { display: block; font-size: 13px; color: #555; margin-bottom: 4px; }
+    input { width: 100%; padding: 10px; margin-bottom: 14px; border: 1px solid #ddd;
+            border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+    button { width: 100%; padding: 11px; background: #6c5ce7; color: #fff; border: 0;
+             border-radius: 8px; font-size: 15px; cursor: pointer; }
+    button:hover { background: #5b4bd1; }
+    .error { background: #ffe6e6; color: #c0392b; padding: 8px 10px; border-radius: 8px;
+             font-size: 13px; margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <form class="card" method="post" action="/login">
+    <h1>TutorAI</h1>
+    <p class="sub">Панель академического руководителя</p>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <label for="username">Логин</label>
+    <input id="username" name="username" autocomplete="username" autofocus>
+    <label for="password">Пароль</label>
+    <input id="password" name="password" type="password" autocomplete="current-password">
+    <button type="submit">Войти</button>
+  </form>
+</body>
+</html>

@@ -16,6 +16,5 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
-RUN chmod +x /app/entrypoint.sh
-
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Команда выбирается на уровне docker-compose (migrate / bot / web).
+CMD ["python", "-m", "app.main"]

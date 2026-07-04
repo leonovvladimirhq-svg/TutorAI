@@ -19,6 +19,7 @@ venv/
 Thumbs.db
 .idea/
 .vscode/
+.claude/
 
 # Data
 postgres-data/

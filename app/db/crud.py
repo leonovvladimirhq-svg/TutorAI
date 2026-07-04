@@ -6,8 +6,77 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ConversationMessage, Goal, ProfileAttribute, Student
+from app.db.models import AppUser, ConversationMessage, Goal, ProfileAttribute, Student
 
+
+# --- Роли (app_user) -------------------------------------------------------
+
+async def get_app_user_by_tg(session: AsyncSession, telegram_id: int) -> AppUser | None:
+    return await session.scalar(select(AppUser).where(AppUser.telegram_id == telegram_id))
+
+
+async def get_role_by_tg(session: AsyncSession, telegram_id: int) -> str | None:
+    user = await get_app_user_by_tg(session, telegram_id)
+    return user.role if user else None
+
+
+async def list_app_users(session: AsyncSession) -> list[AppUser]:
+    result = await session.scalars(select(AppUser).order_by(AppUser.role, AppUser.id))
+    return list(result.all())
+
+
+async def add_app_user(
+    session: AsyncSession, telegram_id: int, role: str, full_name: str | None = None
+) -> AppUser:
+    """Создаёт или обновляет запись роли по telegram_id (upsert)."""
+    user = await get_app_user_by_tg(session, telegram_id)
+    if user is None:
+        user = AppUser(telegram_id=telegram_id, role=role, full_name=full_name)
+        session.add(user)
+    else:
+        user.role = role
+        if full_name is not None:
+            user.full_name = full_name
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def set_app_user_role(session: AsyncSession, user_id: int, role: str) -> None:
+    user = await session.get(AppUser, user_id)
+    if user is not None:
+        user.role = role
+        await session.commit()
+
+
+async def delete_app_user(session: AsyncSession, user_id: int) -> None:
+    user = await session.get(AppUser, user_id)
+    if user is not None:
+        await session.delete(user)
+        await session.commit()
+
+
+async def get_or_create_student_by_tg(
+    session: AsyncSession, telegram_id: int, label: str | None = None
+) -> Student:
+    """Возвращает студенческую запись по telegram_id, создавая её при отсутствии.
+
+    Пароль не используется — идентификация по telegram_id (роль из app_user).
+    """
+    student = await get_student_by_tg(session, telegram_id)
+    if student is None:
+        student = Student(
+            telegram_id=telegram_id,
+            profile_label=(label or "Студент")[:64],
+            password_hash=None,
+        )
+        session.add(student)
+        await session.commit()
+        await session.refresh(student)
+    return student
+
+
+# --- Студенты / профиль ----------------------------------------------------
 
 async def get_student_by_tg(session: AsyncSession, telegram_id: int) -> Student | None:
     return await session.scalar(select(Student).where(Student.telegram_id == telegram_id))

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from openai import AsyncOpenAI
 
@@ -39,9 +40,22 @@ async def chat(
     return (resp.choices[0].message.content or "").strip()
 
 
+# Блоки рассуждений reasoning-моделей (Qwen3): <think>…</think>. Их надо вырезать
+# до парсинга, иначе JSON может «утонуть» в рассуждении и не распарситься.
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_OPEN_THINK_RE = re.compile(r"<think>.*", re.DOTALL | re.IGNORECASE)
+
+
+def strip_reasoning(text: str) -> str:
+    """Убирает <think>…</think> (в т.ч. незакрытый при обрезке по лимиту токенов)."""
+    text = _THINK_RE.sub("", text)
+    text = _OPEN_THINK_RE.sub("", text)  # незакрытый <think> без </think>
+    return text.strip()
+
+
 def extract_json(text: str) -> dict | list | None:
     """Достаёт JSON из ответа модели (на случай обрамляющего текста / ```json блоков)."""
-    text = text.strip()
+    text = strip_reasoning(text)
     if text.startswith("```"):
         # срезаем ```json ... ```
         text = text.strip("`")

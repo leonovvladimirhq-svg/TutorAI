@@ -37,6 +37,13 @@ async def _render_goals(message: Message, session: AsyncSession, student_id: int
     await message.answer(texts.GOALS_HEADER.format(body=body), reply_markup=goals_menu_kb())
 
 
+# Буквы SMART для разбора цели.
+_SMART_LETTERS = {
+    "specific": "S", "measurable": "M", "achievable": "A",
+    "relevant": "R", "time_bound": "T",
+}
+
+
 async def _make_and_show_draft(
     message: Message,
     session: AsyncSession,
@@ -55,6 +62,48 @@ async def _make_and_show_draft(
     await state.set_state(Goals.chatting)
     await state.update_data(intent=intent, draft=draft, awaiting=None)
     await message.answer(texts.GOAL_DRAFT.format(**draft), reply_markup=goal_draft_kb())
+
+
+def _format_evaluation(evaluation: dict) -> str:
+    """Собрать коучинговый разбор цели по SMART для отправки студенту."""
+    lines = [texts.GOAL_EVAL_HEADER]
+    for comp in smart.SMART_COMPONENTS:
+        item = evaluation["components"].get(comp, {})
+        letter = _SMART_LETTERS[comp]
+        label = texts.SMART_LABELS_RU.get(comp, comp)
+        if item.get("met"):
+            detail = item.get("value") or "сформулировано хорошо"
+            lines.append(texts.GOAL_EVAL_LINE_OK.format(letter=letter, label=label, detail=detail))
+        else:
+            detail = item.get("advice") or "нужно уточнить"
+            lines.append(texts.GOAL_EVAL_LINE_BAD.format(letter=letter, label=label, detail=detail))
+    if evaluation.get("comment"):
+        lines.append("\n" + evaluation["comment"])
+    lines.append(texts.GOAL_EVAL_REFINE)
+    return "\n".join(lines)
+
+
+async def _evaluate_and_coach(
+    message: Message, session: AsyncSession, state: FSMContext, student_id: int, goal_text: str
+) -> None:
+    """Оценить цель студента по SMART: либо предложить сохранить, либо коучить дальше."""
+    await message.answer(texts.GOAL_EVALUATING)
+    evaluation = await smart.evaluate_goal(session, student_id, goal_text)
+    if not evaluation:
+        # оставляем режим own_goal — студент может прислать новую формулировку
+        await message.answer(texts.GOAL_EVAL_FAILED)
+        return
+
+    if evaluation["is_smart"]:
+        draft = smart.draft_from_evaluation(evaluation)
+        await state.set_state(Goals.chatting)
+        await state.update_data(intent=goal_text, draft=draft, awaiting=None)
+        await message.answer(texts.GOAL_EVAL_SMART)
+        await message.answer(texts.GOAL_DRAFT.format(**draft), reply_markup=goal_draft_kb())
+    else:
+        await state.set_state(Goals.chatting)
+        await state.update_data(awaiting="own_goal", last_goal=goal_text)
+        await message.answer(_format_evaluation(evaluation))
 
 
 @router.callback_query(F.data == "menu:goals")
@@ -79,7 +128,7 @@ async def goals_new(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "goalnew:own")
 async def goal_own(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(Goals.chatting)
-    await state.update_data(awaiting="own_title", draft=None, intent=None)
+    await state.update_data(awaiting="own_goal", draft=None, intent=None)
     await callback.message.answer(texts.ASK_OWN_GOAL)
     await callback.answer()
 
@@ -110,8 +159,9 @@ async def handle_goals_text(
     awaiting = data.get("awaiting")
     text = raw_text.strip()
 
-    if awaiting == "own_title":
-        await _make_and_show_draft(message, session, state, student.id, text)
+    if awaiting == "own_goal":
+        # Студент сформулировал/переформулировал цель — оцениваем по SMART и коучим.
+        await _evaluate_and_coach(message, session, state, student.id, text)
     elif awaiting == "feedback":
         intent = data.get("intent") or text
         await _make_and_show_draft(message, session, state, student.id, intent, feedback=text)
