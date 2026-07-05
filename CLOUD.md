@@ -183,40 +183,48 @@ yc resource-manager folder add-access-binding <FOLDER_ID> \
 
 ## 8. Текущий статус — РАЗВЁРНУТО ✅
 
-Бот **работает в облаке**: `@tutor_hse_ai_bot` на VM в Yandex Cloud, миграции и сид применены,
-LLM (Qwen3-235B-A22B-FP8) и распознавание речи подключены и проверены.
+Бот и веб-панель **работают в облаке**: `@tutor_hse_ai_bot` (id `8810180603`) на VM в
+Yandex Cloud, миграции `0001` + `0002_appuser_roles` применены, LLM (Qwen3-235B-A22B-FP8)
+и распознавание речи подключены. Веб-панель ролей доступна на порту 8080.
 
-**Фактические параметры развёртывания:**
+**Фактические параметры развёртывания (актуально):**
 
 | Параметр | Значение |
 |----------|----------|
 | Модель (AI Studio) | `gpt://b1gvtru3guuc1oipcs4p/qwen3-235b-a22b-fp8/latest` |
 | Каталог AI Studio + SpeechKit | `b1gvtru3guuc1oipcs4p` (домашний каталог SA, `project2-chatbotdpo`) |
-| VM | `tutorai-bot`, ru-central1-a, standard-v3, 2 vCPU×50%, 4 ГБ, HDD 20 ГБ |
-| Каталог VM | `b1gvtru3guuc1oipcs4p` (там же, где AI Studio) |
-| Публичный IP | 51.250.94.31 |
+| VM | `tutorai-bot-v2`, ru-central1-a, standard-v3, 2 vCPU×50%, 4 ГБ, HDD 20 ГБ |
+| Каталог VM | `b1g0emak4eh8q5t66vfn` (`project5-nastavnik-ai`) |
+| Публичный IP | **51.250.11.57** |
+| Веб-панель ролей | `http://51.250.11.57:8080` (вход `academ` / `ABCD`) |
 
 **Важные нюансы окружения (для администратора):**
 
 - Модель `qwen3-30b-a3b` в каталоге **недоступна** — используется доступная
   `qwen3-235b-a22b-fp8`.
 - AI Studio принимает запросы только когда folder в URI = **домашний каталог сервисного
-  аккаунта** (`b1gvtru3guuc1oipcs4p`); каталоги `project4/project5` дают ошибку
-  «folder does not match service account folder». Поэтому AI-вызовы идут в домашний каталог.
-- VM пришлось создать в домашнем каталоге, потому что в `project5-nastavnik-ai` **квота
-  `vpc.subnets.count` = 0** (нельзя создать подсеть). Чтобы перенести VM в project5 —
-  поднимите квоту подсетей в этом каталоге (консоль → Квоты → VPC), затем пересоздадим VM там.
+  аккаунта** (`b1gvtru3guuc1oipcs4p`, project2). Поэтому в `.env` `YC_FOLDER_ID` указывает на
+  него, хотя сама VM живёт в `project5-nastavnik-ai`.
+- **История:** первая VM (`tutorai-bot`, project5, IP `89.169.131.23`) была развёрнута ранее;
+  при обновлении до версии с ролями/веб-панелью зайти на неё по SSH не удалось (исходный
+  deploy-ключ утерян, а Yandex применяет ssh-ключи только при первичной инициализации).
+  Поэтому поднята новая VM `tutorai-bot-v2` (IP `51.250.11.57`) с полным стеком, а старая
+  VM **остановлена** (не удалена — можно снять диск/данные при необходимости).
+- Вход в бота — по роли из `app_user` (назначается в веб-панели). Тестовых профилей с
+  паролями больше нет; первого руководителя можно задать `BOOTSTRAP_DIRECTOR_TG` в `.env`.
 
-### Управление ботом на VM
+### Управление на VM
 
 ```bash
-ssh yc-user@51.250.94.31
+ssh yc-user@51.250.11.57
 cd /opt/tutorai
+sudo docker compose ps               # статусы (db / migrate / bot / web)
 sudo docker compose logs -f bot      # логи бота
 sudo docker compose logs -f web      # логи веб-панели
 sudo docker compose restart bot      # перезапуск
-git pull && sudo docker compose up -d --build   # обновление
+git pull && sudo docker compose up -d --build   # обновление из main
 ```
 
 Автозапуск после перезагрузки VM обеспечен (`restart: unless-stopped` + включённый docker).
+Порты 22 и 8080 доступны (на сетевом интерфейсе VM не задана security-group → трафик открыт).
 Веб-панель ролей — `http://51.250.94.31:8080` (нужен открытый входящий TCP-порт 8080).
