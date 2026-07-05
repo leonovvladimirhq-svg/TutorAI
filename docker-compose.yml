@@ -14,9 +14,10 @@ services:
       timeout: 5s
       retries: 10
 
-  bot:
+  # Одноразово применяет миграции Alembic; bot и web ждут его успешного завершения.
+  migrate:
     build: .
-    restart: unless-stopped
+    image: tutorai:local
     depends_on:
       db:
         condition: service_healthy
@@ -24,6 +25,35 @@ services:
       - .env
     volumes:
       - ./secrets:/secrets:ro
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  bot:
+    image: tutorai:local
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    volumes:
+      - ./secrets:/secrets:ro
+    command: ["python", "-m", "app.main"]
+
+  # Веб-панель академического руководителя (управление ролями).
+  web:
+    image: tutorai:local
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    volumes:
+      - ./secrets:/secrets:ro
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    command: ["uvicorn", "app.web.main:app", "--host", "0.0.0.0", "--port", "8080"]
 
 volumes:
   postgres-data:

@@ -33,7 +33,9 @@ class Student(Base):
         BigInteger, unique=True, index=True, nullable=True
     )
     profile_label: Mapped[str] = mapped_column(String(64))
-    password_hash: Mapped[str] = mapped_column(String(255))
+    # Пароль больше не используется (вход — по роли из app_user); nullable для
+    # обратной совместимости со старыми записями.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # {block_key: "done" | "in_progress"} — какие блоки профиля проработаны
     profiling_progress: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
@@ -49,6 +51,25 @@ class Student(Base):
     )
     messages: Mapped[list["ConversationMessage"]] = relationship(
         back_populates="student", cascade="all, delete-orphan"
+    )
+
+
+class AppUser(Base):
+    """Реестр ролей: Telegram ID → роль. Управляется академ. руководителем в веб-панели.
+
+    role ∈ {"student", "mentor", "director"} (см. app.services.roles).
+    """
+    __tablename__ = "app_user"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    role: Mapped[str] = mapped_column(String(32))
+    full_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
 

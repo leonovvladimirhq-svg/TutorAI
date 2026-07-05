@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     speechkit_stt_url: str = "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize"
     speechkit_lang: str = "ru-RU"
 
+    # Веб-панель академического руководителя (управление ролями)
+    web_admin_user: str = "academ"
+    web_admin_password: str = "ABCD"
+    web_session_secret: str = "change-me-please-web-secret"
+    web_port: int = 8080
+
     # App
     log_level: str = "INFO"
 

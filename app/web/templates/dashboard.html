@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TutorAI — управление ролями</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; background: #f4f2fa; margin: 0; color: #333; }
+    header { background: #6c5ce7; color: #fff; padding: 16px 24px; display: flex;
+             justify-content: space-between; align-items: center; }
+    header h1 { font-size: 18px; margin: 0; }
+    header a { color: #fff; font-size: 13px; text-decoration: none; opacity: .9; }
+    main { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.06);
+            padding: 20px; margin-bottom: 22px; }
+    h2 { font-size: 15px; margin: 0 0 14px; color: #5b4b9e; }
+    form.inline { display: inline; margin: 0; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .row .field { display: flex; flex-direction: column; }
+    label { font-size: 12px; color: #777; margin-bottom: 3px; }
+    input, select { padding: 9px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+    button { padding: 9px 14px; background: #6c5ce7; color: #fff; border: 0; border-radius: 8px;
+             font-size: 14px; cursor: pointer; }
+    button:hover { background: #5b4bd1; }
+    button.danger { background: #e74c3c; }
+    button.danger:hover { background: #c0392b; }
+    button.ghost { background: #eee; color: #444; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eee; font-size: 14px; }
+    th { color: #999; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+    .notice { background: #e6f7ec; color: #1e8449; padding: 8px 12px; border-radius: 8px;
+              margin-bottom: 16px; font-size: 14px; }
+    .error { background: #ffe6e6; color: #c0392b; padding: 8px 12px; border-radius: 8px;
+             margin-bottom: 16px; font-size: 14px; }
+    .empty { color: #999; font-size: 14px; }
+    code { background: #f0eefa; padding: 2px 6px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TutorAI · Управление ролями</h1>
+    <a href="/logout">Выйти</a>
+  </header>
+  <main>
+    {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+    <div class="card">
+      <h2>Назначить роль</h2>
+      <form method="post" action="/users">
+        <div class="row">
+          <div class="field">
+            <label for="telegram_id">Telegram ID</label>
+            <input id="telegram_id" name="telegram_id" placeholder="например, 123456789" required>
+          </div>
+          <div class="field">
+            <label for="full_name">Имя (необязательно)</label>
+            <input id="full_name" name="full_name" placeholder="Иван Иванов">
+          </div>
+          <div class="field">
+            <label for="role">Роль</label>
+            <select id="role" name="role">
+              {% for r in roles %}<option value="{{ r }}">{{ role_labels[r] }}</option>{% endfor %}
+            </select>
+          </div>
+          <button type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Пользователи ({{ users|length }})</h2>
+      {% if users %}
+      <table>
+        <thead>
+          <tr><th>Telegram ID</th><th>Имя</th><th>Роль</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td><code>{{ u.telegram_id }}</code></td>
+            <td>{{ u.full_name or "—" }}</td>
+            <td>
+              <form class="inline" method="post" action="/users/{{ u.id }}/role">
+                <select name="role" onchange="this.form.submit()">
+                  {% for r in roles %}
+                  <option value="{{ r }}" {% if r == u.role %}selected{% endif %}>{{ role_labels[r] }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+            </td>
+            <td>
+              <form class="inline" method="post" action="/users/{{ u.id }}/delete"
+                    onsubmit="return confirm('Удалить пользователя {{ u.telegram_id }}?');">
+                <button class="danger" type="submit">Удалить</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">Пока никого нет. Добавьте первого пользователя выше.</p>
+      {% endif %}
+    </div>
+  </main>
+</body>
+</html>

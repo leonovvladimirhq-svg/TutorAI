@@ -5,21 +5,12 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.bot import texts
-from app.db.models import Student
 
 
 def consent_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text=texts.BTN_CONSENT_ACCEPT, callback_data="consent:accept")
     kb.button(text=texts.BTN_CONSENT_DECLINE, callback_data="consent:decline")
-    kb.adjust(1)
-    return kb.as_markup()
-
-
-def profile_choice_kb(profiles: list[Student]) -> InlineKeyboardMarkup:
-    kb = InlineKeyboardBuilder()
-    for p in profiles:
-        kb.button(text=p.profile_label, callback_data=f"profile:{p.id}")
     kb.adjust(1)
     return kb.as_markup()
 

@@ -55,6 +55,16 @@ yc compute instance create \
 > Postgres поднимается контейнером в compose (для прода — заменить на Managed PostgreSQL,
 > поправив `DATABASE_URL`).
 
+## Веб-панель ролей
+
+Кроме бота поднимается сервис `web` — панель академического руководителя для управления
+ролями (Telegram ID → роль). Откройте `http://<IP_или_хост>:8080`, войдите под
+`WEB_ADMIN_USER` / `WEB_ADMIN_PASSWORD` (по умолчанию `academ` / `ABCD`), добавьте Telegram ID
+и выберите роль. На новой VM/сервере откройте входящий TCP-порт `8080` (security-group / firewall).
+
+> Пароль `ABCD` и доступ по HTTP — прототипный вариант. Для продакшена задайте сильный
+> `WEB_ADMIN_PASSWORD`, длинный `WEB_SESSION_SECRET` и поставьте HTTPS (reverse-proxy).
+
 ## Обновление
 
 ```bash
@@ -63,7 +73,8 @@ git pull && docker compose up -d --build
 
 ## Эксплуатация
 
-- Логи: `docker compose logs -f bot`
-- Миграции применяются автоматически при старте (entrypoint).
+- Логи: `docker compose logs -f bot` (бот), `docker compose logs -f web` (панель).
+- Миграции применяются автоматически одноразовым сервисом `migrate` при старте.
 - KPI: команда `/stats` в боте.
-- Тестовые профили: «Профиль 1» → `12345`, «Профиль 2/3» → `ABCD`.
+- Доступ в бота — по роли из веб-панели; первого руководителя можно задать через
+  `BOOTSTRAP_DIRECTOR_TG` в `.env`.
