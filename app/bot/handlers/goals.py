@@ -7,7 +7,12 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import texts
-from app.bot.keyboards import goal_draft_kb, goal_templates_kb, goals_menu_kb
+from app.bot.keyboards import (
+    feedback_rating_kb,
+    goal_draft_kb,
+    goal_templates_kb,
+    goals_menu_kb,
+)
 from app.bot.states import Goals
 from app.db import crud
 from app.services import smart
@@ -195,6 +200,10 @@ async def goal_save(callback: CallbackQuery, session: AsyncSession, state: FSMCo
     await callback.answer(texts.GOAL_SAVED)
     await callback.message.answer(texts.GOAL_SAVED)
     await _render_goals(callback.message, session, student.id)
+    # Контекстная обратная связь по формулировке цели (👍/👎 + комментарий).
+    await callback.message.answer(
+        texts.FEEDBACK_ASK_GOAL, reply_markup=feedback_rating_kb("smart_goal", goal.id)
+    )
 
 
 @router.callback_query(Goals.chatting, F.data == "goaldraft:edit")

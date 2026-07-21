@@ -14,3 +14,7 @@ class Goals(StatesGroup):
 
 class ProfileEdit(StatesGroup):
     waiting_value = State()
+
+
+class Feedback(StatesGroup):
+    waiting_comment = State()

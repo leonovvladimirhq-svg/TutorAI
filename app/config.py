@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     web_session_secret: str = "change-me-please-web-secret"
     web_port: int = 8080
 
+    # Оператор ПДн (152-ФЗ) — плейсхолдеры, точные реквизиты заполняются перед запуском.
+    operator_name: str = "Школа коммуникаций НИУ ВШЭ"
+    operator_email: str = ""  # e-mail ответственного за обработку ПДн (заполнить позже)
+    data_storage: str = "Yandex Cloud, ru-central1 (РФ, УЗ-1)"
+
     # App
     log_level: str = "INFO"
 

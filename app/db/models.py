@@ -161,3 +161,44 @@ class EventLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class ConsentRecord(Base):
+    """Аудит-след согласий на обработку ПДн (152-ФЗ).
+
+    Одна запись — один акт согласия/отказа/отзыва по конкретной версии документа.
+    Ключ — telegram_id (работает для любой роли, не только студента). Актуальность
+    согласия определяется последней записью со статусом ``accepted`` для текущей
+    версии документа (см. app.services.consent).
+    """
+    __tablename__ = "consent_record"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    doc_version: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16))  # accepted | declined | revoked
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class Feedback(Base):
+    """Обратная связь студента: 👍/👎 + необязательный комментарий.
+
+    context — где оставлена (``menu`` | ``smart_goal`` | …); ref_id — id связанного
+    объекта (например, goal.id) при контекстной обратной связи.
+    """
+    __tablename__ = "feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int | None] = mapped_column(
+        ForeignKey("student.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    telegram_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    context: Mapped[str] = mapped_column(String(32), default="menu")
+    rating: Mapped[str] = mapped_column(String(8))  # up | down
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ref_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

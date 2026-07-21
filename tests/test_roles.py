@@ -3,10 +3,13 @@ from __future__ import annotations
 
 from app.services import smart
 from app.services.roles import (
+    ROLE_ADMIN,
     ROLE_DIRECTOR,
     ROLE_MENTOR,
     ROLE_STUDENT,
+    ROLES,
     is_valid_role,
+    role_description,
     role_label,
 )
 
@@ -15,6 +18,7 @@ def test_role_labels_ru():
     assert role_label(ROLE_STUDENT) == "Студент"
     assert role_label(ROLE_MENTOR) == "Наставник"
     assert role_label(ROLE_DIRECTOR) == "Академический руководитель"
+    assert role_label(ROLE_ADMIN) == "Администратор"
 
 
 def test_role_label_unknown_passthrough():
@@ -23,7 +27,14 @@ def test_role_label_unknown_passthrough():
 
 def test_is_valid_role():
     assert is_valid_role(ROLE_STUDENT)
+    assert is_valid_role(ROLE_ADMIN)
     assert not is_valid_role("teacher")
+
+
+def test_all_roles_have_descriptions():
+    assert len(ROLES) == 4
+    for r in ROLES:
+        assert role_description(r)  # непустое описание для каждой роли
 
 
 def test_draft_from_evaluation():

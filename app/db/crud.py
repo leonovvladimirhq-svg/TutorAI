@@ -3,10 +3,18 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import AppUser, ConversationMessage, Goal, ProfileAttribute, Student
+from app.db.models import (
+    AppUser,
+    ConsentRecord,
+    ConversationMessage,
+    Feedback,
+    Goal,
+    ProfileAttribute,
+    Student,
+)
 
 
 # --- Роли (app_user) -------------------------------------------------------
@@ -222,3 +230,117 @@ async def add_goal(
     await session.commit()
     await session.refresh(goal)
     return goal
+
+
+# --- Согласие на обработку ПДн (consent_record) ----------------------------
+
+async def add_consent_record(
+    session: AsyncSession, telegram_id: int, doc_version: str, status: str
+) -> ConsentRecord:
+    record = ConsentRecord(telegram_id=telegram_id, doc_version=doc_version, status=status)
+    session.add(record)
+    await session.commit()
+    await session.refresh(record)
+    return record
+
+
+async def latest_consent_record(
+    session: AsyncSession, telegram_id: int
+) -> ConsentRecord | None:
+    return await session.scalar(
+        select(ConsentRecord)
+        .where(ConsentRecord.telegram_id == telegram_id)
+        .order_by(ConsentRecord.id.desc())
+        .limit(1)
+    )
+
+
+# --- Права субъекта: /my_data, /forget_me ----------------------------------
+
+async def collect_my_data(session: AsyncSession, telegram_id: int) -> dict:
+    """Сводка данных пользователя для /my_data."""
+    role = await get_role_by_tg(session, telegram_id)
+    student = await get_student_by_tg(session, telegram_id)
+    consent = await latest_consent_record(session, telegram_id)
+    data: dict = {
+        "telegram_id": telegram_id,
+        "role": role,
+        "consent_status": consent.status if consent else None,
+        "consent_version": consent.doc_version if consent else None,
+        "has_profile": student is not None,
+    }
+    if student is not None:
+        attrs = await session.scalar(
+            select(func.count()).select_from(ProfileAttribute).where(
+                ProfileAttribute.student_id == student.id
+            )
+        )
+        msgs = await session.scalar(
+            select(func.count()).select_from(ConversationMessage).where(
+                ConversationMessage.student_id == student.id
+            )
+        )
+        goals = await list_goals(session, student.id)
+        data.update(
+            attributes_count=attrs or 0,
+            messages_count=msgs or 0,
+            goals=[g.title for g in goals],
+        )
+    return data
+
+
+async def forget_me(session: AsyncSession, telegram_id: int) -> None:
+    """Удаляет персональные данные пользователя (152-ФЗ, /forget_me).
+
+    Удаляется студенческая запись (каскадом — профиль, цели, сообщения);
+    имя в реестре ролей обезличивается. Записи consent_record сохраняются как
+    аудит-след, event_log/feedback обезличиваются (student_id → NULL по FK).
+    Роль (app_user) не удаляется, чтобы не ломать доступ; при желании её снимут
+    в веб-панели.
+    """
+    student = await get_student_by_tg(session, telegram_id)
+    if student is not None:
+        await session.delete(student)  # каскад по FK на дочерние таблицы
+    app_user = await get_app_user_by_tg(session, telegram_id)
+    if app_user is not None:
+        app_user.full_name = None
+    await session.commit()
+
+
+# --- Обратная связь (feedback) ---------------------------------------------
+
+async def add_feedback(
+    session: AsyncSession,
+    telegram_id: int,
+    rating: str,
+    context: str = "menu",
+    comment: str | None = None,
+    student_id: int | None = None,
+    ref_id: int | None = None,
+) -> Feedback:
+    fb = Feedback(
+        telegram_id=telegram_id,
+        student_id=student_id,
+        rating=rating,
+        context=context,
+        comment=comment,
+        ref_id=ref_id,
+    )
+    session.add(fb)
+    await session.commit()
+    await session.refresh(fb)
+    return fb
+
+
+async def set_feedback_comment(session: AsyncSession, feedback_id: int, comment: str) -> None:
+    fb = await session.get(Feedback, feedback_id)
+    if fb is not None:
+        fb.comment = comment[:2000]
+        await session.commit()
+
+
+async def list_feedback(session: AsyncSession, limit: int = 200) -> list[Feedback]:
+    result = await session.scalars(
+        select(Feedback).order_by(Feedback.id.desc()).limit(limit)
+    )
+    return list(result.all())

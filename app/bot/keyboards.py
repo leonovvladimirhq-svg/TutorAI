@@ -7,11 +7,44 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.bot import texts
 
 
-def consent_kb() -> InlineKeyboardMarkup:
+def consent_intro_kb() -> InlineKeyboardMarkup:
+    """Экран 1: приглашение прочитать согласие."""
     kb = InlineKeyboardBuilder()
+    kb.button(text=texts.BTN_CONSENT_READ, callback_data="consent:read")
+    return kb.as_markup()
+
+
+def consent_kb() -> InlineKeyboardMarkup:
+    """Экран 2: полный текст + согласие/отказ."""
+    kb = InlineKeyboardBuilder()
+    kb.button(text=texts.BTN_CONSENT_FULLTEXT, callback_data="consent:fulltext")
     kb.button(text=texts.BTN_CONSENT_ACCEPT, callback_data="consent:accept")
     kb.button(text=texts.BTN_CONSENT_DECLINE, callback_data="consent:decline")
     kb.adjust(1)
+    return kb.as_markup()
+
+
+def forget_me_confirm_kb() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=texts.BTN_FORGET_YES, callback_data="forget:yes")
+    kb.button(text=texts.BTN_FORGET_NO, callback_data="forget:no")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def feedback_rating_kb(context: str = "menu", ref_id: int | None = None) -> InlineKeyboardMarkup:
+    """Кнопки 👍/👎. callback: fb:<up|down>:<context>:<ref_id or '' >."""
+    ref = str(ref_id) if ref_id is not None else ""
+    kb = InlineKeyboardBuilder()
+    kb.button(text=texts.BTN_FB_UP, callback_data=f"fb:up:{context}:{ref}")
+    kb.button(text=texts.BTN_FB_DOWN, callback_data=f"fb:down:{context}:{ref}")
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+def feedback_skip_kb() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=texts.BTN_FB_SKIP, callback_data="fb:skip")
     return kb.as_markup()
 
 
@@ -20,6 +53,7 @@ def main_menu_kb() -> InlineKeyboardMarkup:
     kb.button(text=texts.BTN_PROFILING, callback_data="menu:profiling")
     kb.button(text=texts.BTN_GOALS, callback_data="menu:goals")
     kb.button(text=texts.BTN_PROFILE, callback_data="menu:profile")
+    kb.button(text=texts.BTN_FEEDBACK, callback_data="menu:feedback")
     kb.adjust(1)
     return kb.as_markup()
 

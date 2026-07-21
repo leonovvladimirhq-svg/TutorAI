@@ -17,7 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.db import crud
 from app.db.session import AsyncSessionLocal
-from app.services.roles import ROLE_LABELS, ROLES, is_valid_role
+from app.services.roles import ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, is_valid_role
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -81,9 +81,22 @@ async def dashboard(request: Request, session: AsyncSession = Depends(get_sessio
             "users": users,
             "roles": ROLES,
             "role_labels": ROLE_LABELS,
+            "role_descriptions": ROLE_DESCRIPTIONS,
             "notice": request.query_params.get("notice"),
             "error": request.query_params.get("error"),
         },
+    )
+
+
+@app.get("/feedback", response_class=HTMLResponse)
+async def feedback_list(request: Request, session: AsyncSession = Depends(get_session)):
+    if not _is_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    items = await crud.list_feedback(session)
+    return templates.TemplateResponse(
+        request,
+        "feedback.html",
+        {"items": items},
     )
 
 

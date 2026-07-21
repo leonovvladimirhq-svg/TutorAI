@@ -39,11 +39,28 @@
 <body>
   <header>
     <h1>TutorAI · Управление ролями</h1>
-    <a href="/logout">Выйти</a>
+    <div>
+      <a href="/feedback" style="margin-right:16px">Обратная связь</a>
+      <a href="/logout">Выйти</a>
+    </div>
   </header>
   <main>
     {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+    <div class="card">
+      <h2>Роли и зачем они нужны</h2>
+      <table>
+        <tbody>
+          {% for r in roles %}
+          <tr>
+            <td style="white-space:nowrap;font-weight:600;color:#5b4b9e;vertical-align:top">{{ role_labels[r] }}</td>
+            <td style="color:#555">{{ role_descriptions[r] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
 
     <div class="card">
       <h2>Назначить роль</h2>
