@@ -13,6 +13,10 @@ class Settings(BaseSettings):
 
     # Telegram
     telegram_bot_token: str = "000000:CHANGE_ME"
+    # Прокси до Telegram API: из сети Yandex Cloud api.telegram.org недоступен,
+    # поэтому бот ходит через прокси. Пусто — идём напрямую (локальная разработка).
+    # Формат: socks5://user:pass@host:1080 либо http://user:pass@host:3128
+    telegram_proxy: str = ""
 
     # Database
     database_url: str = "postgresql+asyncpg://tutorai:change_me@db:5432/tutorai"

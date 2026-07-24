@@ -38,6 +38,13 @@ services:
       - .env
     volumes:
       - ./secrets:/secrets:ro
+    # api.telegram.org из YC резолвится в IPv6 (у VM его нет) и в IPv4 149.154.166.110
+    # (фильтруется) → бот падает на таймауте. Прибиваем имя к рабочему IPv4 Telegram
+    # (проверено: 149.154.167.220 отдаёт Bot API; та же схема живёт у vedomost-ai).
+    # Если этот IP перестанет отвечать — подобрать другой живой A-адрес Telegram
+    # (getent ahosts / curl --resolve api.telegram.org:443:<ip>) или задать TELEGRAM_PROXY.
+    extra_hosts:
+      - "api.telegram.org:149.154.167.220"
     command: ["python", "-m", "app.main"]
 
   # Веб-панель академического руководителя (управление ролями).

@@ -6,6 +6,7 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -47,8 +48,18 @@ async def main() -> None:
     )
     await on_startup()
 
+    # Из сети Yandex Cloud api.telegram.org недоступен — при заданном
+    # TELEGRAM_PROXY ходим в Telegram через прокси, иначе напрямую.
+    if settings.telegram_proxy:
+        logger.info("Telegram: через прокси %s", settings.telegram_proxy.split("@")[-1])
+        session = AiohttpSession(proxy=settings.telegram_proxy)
+    else:
+        logger.warning("Telegram: TELEGRAM_PROXY не задан — идём напрямую")
+        session = None
+
     bot = Bot(
         token=settings.telegram_bot_token,
+        session=session,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = build_dispatcher()
