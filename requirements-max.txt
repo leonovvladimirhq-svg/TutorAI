@@ -1,0 +1,22 @@
+# Зависимости MAX-версии бота (app/main_max.py).
+# maxapi требует aiohttp>=3.11, а aiogram — <3.11: вместе в один образ не ставятся.
+# Поэтому MAX-бот собирается со своим набором зависимостей (без aiogram/aiohttp-socks);
+# остальной стек (БД, LLM, веб-панель) общий с Telegram-версией.
+maxapi==1.2.1
+SQLAlchemy[asyncio]==2.0.35
+asyncpg==0.29.0
+alembic==1.13.3
+pydantic==2.9.2
+pydantic-settings==2.5.2
+bcrypt==4.2.0
+openai==1.54.3
+httpx==0.27.2
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+jinja2==3.1.4
+python-multipart==0.0.12
+itsdangerous==2.2.0
+PyJWT[crypto]==2.9.0
+cryptography==43.0.1
+pytest==8.3.3
+pytest-asyncio==0.24.0

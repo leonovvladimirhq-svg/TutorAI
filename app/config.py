@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # Формат: socks5://user:pass@host:1080 либо http://user:pass@host:3128
     telegram_proxy: str = ""
 
+    # MAX (мессенджер) — токен бота от @MasterBot. Транспорт-слой в app/maxbot/,
+    # entrypoint app/main_max.py. MAX доступен из YC (в отличие от Telegram).
+    max_bot_token: str = ""
+
     # Database
     database_url: str = "postgresql+asyncpg://tutorai:change_me@db:5432/tutorai"
 
