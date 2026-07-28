@@ -34,9 +34,22 @@ async def edit(cb, text: str, kb=None) -> None:
     await cb.edit(text=text, attachments=_atts(kb), format=ParseMode.HTML)
 
 
-async def ack(cb) -> None:
-    """Подтвердить нажатие callback (аналог answerCallbackQuery)."""
-    await cb.answer()
+async def ack(cb, notification: str | None = None) -> None:
+    """Подтвердить нажатие callback (аналог answerCallbackQuery).
+
+    notification — всплывающее уведомление (аналог aiogram show_alert=True).
+    """
+    await cb.answer(notification=notification)
+
+
+async def clear_markup(cb) -> None:
+    """Убрать inline-клавиатуру с сообщения (чтобы кнопки нельзя было нажать повторно)."""
+    body = getattr(cb.message, "body", None)
+    text = body.text if body else None
+    try:
+        await cb.edit(text=text, attachments=[], format=ParseMode.HTML)
+    except Exception:  # noqa: BLE001 — снятие клавиатуры некритично для сценария
+        pass
 
 
 async def show_main_menu(event) -> None:

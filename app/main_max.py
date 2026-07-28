@@ -13,7 +13,7 @@ from maxapi import Bot, Dispatcher
 from app.config import settings
 from app.db.seed import seed_profiles
 from app.db.session import AsyncSessionLocal
-from app.maxbot.handlers import start
+from app.maxbot.handlers import dialogue, fallback, feedback, goals, profile, start
 from app.maxbot.middleware import DbSessionMiddleware
 
 logger = logging.getLogger(__name__)
@@ -23,8 +23,16 @@ def build_dispatcher() -> Dispatcher:
     dp = Dispatcher()
     # сессия БД на каждый апдейт (кладёт session в data для хендлеров)
     dp.register_outer_middleware(DbSessionMiddleware())
-    # порядок роутеров важен: специализированные — раньше, fallback — последним
-    dp.include_routers(start.router)
+    # порядок роутеров важен: специализированные — раньше, fallback — последним.
+    # (voice пока не портирован — нужен разбор скачивания аудио-вложения MAX.)
+    dp.include_routers(
+        start.router,
+        dialogue.router,
+        goals.router,
+        profile.router,
+        feedback.router,
+        fallback.router,
+    )
     return dp
 
 
