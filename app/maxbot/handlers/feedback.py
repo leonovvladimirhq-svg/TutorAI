@@ -29,7 +29,6 @@ async def feedback_from_menu(event: MessageCallback) -> None:
 async def feedback_skip(event: MessageCallback, context: MemoryContext) -> None:
     await context.clear()
     await clear_markup(event)
-    await ack(event)
     await reply(event, texts.FEEDBACK_THANKS)
 
 
@@ -57,7 +56,6 @@ async def feedback_rating(event: MessageCallback, session: AsyncSession, context
     await context.set_state(FeedbackState.waiting_comment)
     await context.update_data(fb_id=fb.id)
     await clear_markup(event)
-    await ack(event)
     await reply(event, texts.FEEDBACK_ASK_COMMENT, feedback_skip_kb())
 
 

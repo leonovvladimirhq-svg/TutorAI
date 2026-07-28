@@ -176,14 +176,12 @@ async def goal_save(event: MessageCallback, session: AsyncSession, context: Memo
         await context.update_data(awaiting="feedback")
         labels = ", ".join(texts.SMART_LABELS_RU.get(m, m) for m in missing)
         await clear_markup(event)
-        await ack(event)
         await reply(event, texts.GOAL_INCOMPLETE.format(missing=labels))
         return
     goal = await crud.add_goal(session, student.id, draft, status="active")
     await log_event(session, student.id, "goal_created", {"goal_id": goal.id, "title": goal.title})
     await context.clear()
-    await clear_markup(event)
-    await ack(event, notification=texts.GOAL_SAVED)
+    await clear_markup(event, notification=texts.GOAL_SAVED)
     await reply(event, texts.GOAL_SAVED)
     await _render_goals(event, session, student.id)
     # Контекстная обратная связь по формулировке цели (👍/👎 + комментарий).
@@ -194,7 +192,6 @@ async def goal_save(event: MessageCallback, session: AsyncSession, context: Memo
 async def goal_edit(event: MessageCallback, context: MemoryContext) -> None:
     await context.update_data(awaiting="feedback")
     await clear_markup(event)
-    await ack(event)
     await reply(event, texts.ASK_GOAL_FEEDBACK)
 
 
@@ -203,7 +200,6 @@ async def goal_cancel(event: MessageCallback, session: AsyncSession, context: Me
     student = await crud.get_student_by_tg(session, event.from_user.user_id)
     await context.clear()
     await clear_markup(event)
-    await ack(event)
     await reply(event, texts.GOAL_CANCELLED)
     if student is not None:
         await _render_goals(event, session, student.id)

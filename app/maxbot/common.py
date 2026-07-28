@@ -29,27 +29,34 @@ async def reply(event, text: str, kb=None) -> None:
         await event.send(text, attachments=_atts(kb), parse_mode=ParseMode.HTML)
 
 
-async def edit(cb, text: str, kb=None) -> None:
-    """Отредактировать сообщение, на котором нажата inline-кнопка."""
-    await cb.edit(text=text, attachments=_atts(kb), format=ParseMode.HTML)
+async def edit(cb, text: str, kb=None, notification: str | None = None) -> None:
+    """Отредактировать сообщение, на котором нажата inline-кнопка.
+
+    ВАЖНО: в maxapi edit реализован через send_callback — это И ЕСТЬ ответ на
+    callback. Отдельный ack после edit вызывать НЕЛЬЗЯ: второй ответ на тот же
+    callback отменяет правку. notification — опциональное всплывающее уведомление.
+    """
+    await cb.edit(text=text, attachments=_atts(kb), format=ParseMode.HTML, notification=notification)
 
 
 async def ack(cb, notification: str | None = None) -> None:
-    """Подтвердить нажатие callback (аналог answerCallbackQuery).
+    """Подтвердить нажатие callback без изменения сообщения (answerCallbackQuery).
 
     notification — всплывающее уведомление (аналог aiogram show_alert=True).
+    Использовать, когда сообщение НЕ редактируется (иначе см. edit/clear_markup).
     """
     await cb.answer(notification=notification)
 
 
-async def clear_markup(cb) -> None:
-    """Убрать inline-клавиатуру с сообщения (чтобы кнопки нельзя было нажать повторно)."""
+async def clear_markup(cb, notification: str | None = None) -> None:
+    """Убрать inline-клавиатуру (сохранив текст). Тоже ответ на callback — отдельный
+    ack не нужен. notification — опциональное всплывающее уведомление."""
     body = getattr(cb.message, "body", None)
     text = body.text if body else None
     try:
-        await cb.edit(text=text, attachments=[], format=ParseMode.HTML)
-    except Exception:  # noqa: BLE001 — снятие клавиатуры некритично для сценария
-        pass
+        await cb.edit(text=text, attachments=[], format=ParseMode.HTML, notification=notification)
+    except Exception:  # noqa: BLE001 — если правка не прошла, хотя бы ответим на callback
+        await cb.answer(notification=notification)
 
 
 async def show_main_menu(event) -> None:

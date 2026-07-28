@@ -70,7 +70,6 @@ async def _route_by_role(event, session: AsyncSession, role: str) -> None:
 @router.message_callback(F.callback.payload == "consent:read")
 async def consent_read(event: MessageCallback) -> None:
     await edit(event, texts.CONSENT_SUMMARY.format(**consent.summary()), consent_kb())
-    await ack(event)
 
 
 @router.message_callback(F.callback.payload == "consent:fulltext")
@@ -86,7 +85,6 @@ async def consent_fulltext(event: MessageCallback) -> None:
 async def consent_decline(event: MessageCallback, session: AsyncSession) -> None:
     await consent.record_consent(session, event.from_user.user_id, consent.STATUS_DECLINED)
     await edit(event, texts.CONSENT_DECLINED)
-    await ack(event)
 
 
 @router.message_callback(F.callback.payload == "consent:accept")
@@ -97,7 +95,6 @@ async def consent_accept(
     app_user = await crud.get_app_user_by_tg(session, uid)
     if app_user is None:
         await edit(event, texts.NOT_REGISTERED.format(tg_id=uid))
-        await ack(event)
         return
 
     await consent.record_consent(session, uid, consent.STATUS_ACCEPTED)
@@ -108,11 +105,9 @@ async def consent_accept(
         await crud.bind_telegram(session, student, uid)
         await log_event(session, student.id, "auth_success", {"role": app_user.role})
         await edit(event, texts.GREETING_STUDENT.format(role=role_label(app_user.role)))
-        await ack(event)
         await show_main_menu(event)
     else:
         await edit(event, texts.GREETING_ROLE_ONLY.format(role=role_label(app_user.role)))
-        await ack(event)
 
 
 # --- Меню и служебные команды ----------------------------------------------
@@ -188,10 +183,8 @@ async def forget_yes(event: MessageCallback, session: AsyncSession, context: Mem
     await crud.forget_me(session, uid)
     await context.clear()
     await edit(event, texts.FORGET_ME_DONE)
-    await ack(event)
 
 
 @router.message_callback(F.callback.payload == "forget:no")
 async def forget_no(event: MessageCallback) -> None:
     await edit(event, texts.FORGET_ME_CANCELLED)
-    await ack(event)

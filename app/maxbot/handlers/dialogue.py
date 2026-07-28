@@ -139,8 +139,7 @@ async def candidate_confirm(event: MessageCallback, session: AsyncSession, conte
         )
         await context.update_data(queue=queue)
         await log_event(session, student.id, "attribute_confirmed", {"block": cand["block"], "key": cand["key"]})
-    await clear_markup(event)
-    await ack(event, notification=texts.CANDIDATE_CONFIRMED)
+    await clear_markup(event, notification=texts.CANDIDATE_CONFIRMED)
     await _show_next_or_advance(event, session, context, student)
 
 
@@ -156,8 +155,7 @@ async def candidate_skip(event: MessageCallback, session: AsyncSession, context:
     if queue:
         queue.pop(0)
         await context.update_data(queue=queue)
-    await clear_markup(event)
-    await ack(event, notification=texts.CANDIDATE_SKIPPED)
+    await clear_markup(event, notification=texts.CANDIDATE_SKIPPED)
     await _show_next_or_advance(event, session, context, student)
 
 
@@ -169,5 +167,4 @@ async def candidate_correct(event: MessageCallback, context: MemoryContext) -> N
         cand = queue.pop(0)
         await context.update_data(queue=queue, awaiting_correction=cand)
     await clear_markup(event)
-    await ack(event)
     await reply(event, texts.ASK_CORRECTION)
