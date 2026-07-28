@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from maxapi import F, Router
 from maxapi.context import MemoryContext
-from maxapi.types import Command, CommandStart, MessageCallback, MessageCreated
+from maxapi.types import BotStarted, Command, CommandStart, MessageCallback, MessageCreated
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import texts
@@ -29,8 +29,19 @@ router = Router()
 
 # --- Старт и согласие ------------------------------------------------------
 
+# В MAX первое открытие бота приходит событием bot_started («Вы начали общение
+# с ботом»), а не текстовой командой /start. Обрабатываем оба входа одинаково.
+@router.bot_started()
+async def on_bot_started(event: BotStarted, session: AsyncSession, context: MemoryContext) -> None:
+    await _do_start(event, session, context)
+
+
 @router.message_created(CommandStart())
 async def cmd_start(event: MessageCreated, session: AsyncSession, context: MemoryContext) -> None:
+    await _do_start(event, session, context)
+
+
+async def _do_start(event, session: AsyncSession, context: MemoryContext) -> None:
     await context.clear()
     uid = event.from_user.user_id
     role = await crud.get_role_by_tg(session, uid)

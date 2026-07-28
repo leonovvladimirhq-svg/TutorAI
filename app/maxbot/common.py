@@ -17,8 +17,16 @@ def _atts(kb):
 
 
 async def reply(event, text: str, kb=None) -> None:
-    """Отправить новое сообщение в чат."""
-    await event.message.answer(text, attachments=_atts(kb), parse_mode=ParseMode.HTML)
+    """Отправить новое сообщение в чат.
+
+    У текстовых апдейтов (MessageCreated/MessageCallback) есть .message с .answer();
+    у события bot_started сообщения ещё нет — там свой метод .send().
+    """
+    msg = getattr(event, "message", None)
+    if msg is not None:
+        await msg.answer(text, attachments=_atts(kb), parse_mode=ParseMode.HTML)
+    else:
+        await event.send(text, attachments=_atts(kb), parse_mode=ParseMode.HTML)
 
 
 async def edit(cb, text: str, kb=None) -> None:
