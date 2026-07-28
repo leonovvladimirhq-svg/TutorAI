@@ -28,8 +28,14 @@ services:
     command: ["alembic", "upgrade", "head"]
     restart: "no"
 
-  bot:
-    image: tutorai:local
+  # Бот мессенджера MAX (заменил Telegram-бота: Telegram недоступен из YC).
+  # Свой образ — maxapi несовместим с aiogram по aiohttp (см. Dockerfile.max).
+  # Токен — MAX_BOT_TOKEN из .env.
+  bot_max:
+    build:
+      context: .
+      dockerfile: Dockerfile.max
+    image: tutorai-max:local
     restart: unless-stopped
     depends_on:
       migrate:
@@ -38,14 +44,7 @@ services:
       - .env
     volumes:
       - ./secrets:/secrets:ro
-    # api.telegram.org из YC резолвится в IPv6 (у VM его нет) и в IPv4 149.154.166.110
-    # (фильтруется) → бот падает на таймауте. Прибиваем имя к рабочему IPv4 Telegram
-    # (проверено: 149.154.167.220 отдаёт Bot API; та же схема живёт у vedomost-ai).
-    # Если этот IP перестанет отвечать — подобрать другой живой A-адрес Telegram
-    # (getent ahosts / curl --resolve api.telegram.org:443:<ip>) или задать TELEGRAM_PROXY.
-    extra_hosts:
-      - "api.telegram.org:149.154.167.220"
-    command: ["python", "-m", "app.main"]
+    command: ["python", "-m", "app.main_max"]
 
   # Веб-панель академического руководителя (управление ролями).
   web:
