@@ -13,6 +13,7 @@ from app.maxbot.common import ack, clear_markup, reply
 from app.maxbot.keyboards import (
     feedback_rating_kb,
     goal_draft_kb,
+    goal_eval_kb,
     goal_templates_kb,
     goals_menu_kb,
 )
@@ -95,9 +96,15 @@ async def _evaluate_and_coach(
         await reply(event, texts.GOAL_EVAL_SMART)
         await reply(event, texts.GOAL_DRAFT.format(**draft), goal_draft_kb())
     else:
+        # Черновик из того, что модель зачла. Незачтённые критерии остаются пустыми,
+        # а исходные слова студента кладём в specific — чтобы кнопка «Оставить как
+        # есть» сохранила именно его формулировку, а не потеряла её.
+        draft = smart.draft_from_evaluation(evaluation)
+        if not draft.get("specific"):
+            draft["specific"] = goal_text[:1000]
         await context.set_state(Goals.chatting)
-        await context.update_data(awaiting="own_goal", last_goal=goal_text)
-        await reply(event, _format_evaluation(evaluation))
+        await context.update_data(awaiting="own_goal", last_goal=goal_text, draft=draft)
+        await reply(event, _format_evaluation(evaluation), goal_eval_kb())
 
 
 @router.message_callback(F.callback.payload == "menu:goals")
@@ -185,6 +192,32 @@ async def goal_save(event: MessageCallback, session: AsyncSession, context: Memo
     await reply(event, texts.GOAL_SAVED)
     await _render_goals(event, session, student.id)
     # Контекстная обратная связь по формулировке цели (👍/👎 + комментарий).
+    await reply(event, texts.FEEDBACK_ASK_GOAL, feedback_rating_kb("smart_goal", goal.id))
+
+
+@router.message_callback(StateFilter(Goals.chatting), F.callback.payload == "goalkeep:save")
+async def goal_keep(event: MessageCallback, session: AsyncSession, context: MemoryContext) -> None:
+    """Сохранить цель в формулировке студента, не доводя её до полного SMART.
+
+    Осознанный выход из коучингового цикла: студент вправе настоять на своей
+    формулировке. Валидацию по SMART здесь намеренно НЕ применяем — цель просто
+    останется без отметки «полная» в списке целей.
+    """
+    student = await crud.get_student_by_tg(session, event.from_user.user_id)
+    data = await context.get_data()
+    draft = data.get("draft")
+    if student is None or not draft:
+        await ack(event)
+        return
+    goal = await crud.add_goal(session, student.id, draft, status="active")
+    await log_event(
+        session, student.id, "goal_created",
+        {"goal_id": goal.id, "title": goal.title, "kept_as_is": True},
+    )
+    await context.clear()
+    await clear_markup(event, notification=texts.GOAL_SAVED)
+    await reply(event, texts.GOAL_KEPT)
+    await _render_goals(event, session, student.id)
     await reply(event, texts.FEEDBACK_ASK_GOAL, feedback_rating_kb("smart_goal", goal.id))
 
 

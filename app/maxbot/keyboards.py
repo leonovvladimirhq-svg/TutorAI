@@ -104,6 +104,19 @@ def goal_draft_kb() -> "object":
     return kb.as_markup()
 
 
+def goal_eval_kb() -> "object":
+    """Экран разбора цели по SMART, когда критерии выполнены не все.
+
+    Даёт студенту выход из коучингового цикла: он может либо прислать новую
+    формулировку текстом, либо настоять на своей и сохранить её как есть.
+    """
+    kb = InlineKeyboardBuilder()
+    kb.add(CallbackButton(text=texts.BTN_GOAL_KEEP, payload="goalkeep:save"))
+    kb.add(CallbackButton(text=texts.BTN_GOAL_CANCEL, payload="goaldraft:cancel"))
+    kb.adjust(1)
+    return kb.as_markup()
+
+
 def profile_view_kb() -> "object":
     kb = InlineKeyboardBuilder()
     kb.add(CallbackButton(text=texts.BTN_EDIT, payload="profile:edit"))
