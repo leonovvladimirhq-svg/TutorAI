@@ -56,6 +56,7 @@ def main_menu_kb() -> "object":
     kb = InlineKeyboardBuilder()
     kb.add(CallbackButton(text=texts.BTN_PROFILING, payload="menu:profiling"))
     kb.add(CallbackButton(text=texts.BTN_GOALS, payload="menu:goals"))
+    kb.add(CallbackButton(text=texts.BTN_REFLECT, payload="menu:reflect"))
     kb.add(CallbackButton(text=texts.BTN_PROFILE, payload="menu:profile"))
     kb.add(CallbackButton(text=texts.BTN_FEEDBACK, payload="menu:feedback"))
     kb.adjust(1)
@@ -134,5 +135,51 @@ def profile_edit_list_kb(attributes) -> "object":
         label = f"{title}: {attr.value}"
         kb.add(CallbackButton(text=label[:60], payload=f"attredit:{attr.id}"))
     kb.add(CallbackButton(text=texts.BTN_BACK, payload="menu:profile"))
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def mentor_confirm_kb(goal_id: int) -> "object":
+    """Уведомление наставнику о новой цели: подтвердить / отклонить (с причиной)."""
+    kb = InlineKeyboardBuilder()
+    kb.add(CallbackButton(text=texts.BTN_MENTOR_CONFIRM, payload=f"mconfirm:{goal_id}"))
+    kb.add(CallbackButton(text=texts.BTN_MENTOR_REJECT, payload=f"mreject:{goal_id}"))
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def mentor_menu_kb() -> "object":
+    kb = InlineKeyboardBuilder()
+    kb.add(CallbackButton(text=texts.BTN_MENTOR_STUDENTS, payload="mstudents"))
+    return kb.as_markup()
+
+
+def mentor_students_kb(users) -> "object":
+    """Список закреплённых студентов: payload mstud:<app_user.id>."""
+    kb = InlineKeyboardBuilder()
+    for u in users:
+        label = u.full_name or f"ID {u.telegram_id}"
+        kb.add(CallbackButton(text=label[:60], payload=f"mstud:{u.id}"))
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def mentor_student_kb(user_id: int) -> "object":
+    """Карточка студента: отчёт / цели / назад к списку."""
+    kb = InlineKeyboardBuilder()
+    kb.add(CallbackButton(text=texts.BTN_MENTOR_REPORT, payload=f"mreport:{user_id}"))
+    kb.add(CallbackButton(text=texts.BTN_MENTOR_GOALS, payload=f"mgoals:{user_id}"))
+    kb.add(CallbackButton(text=texts.BTN_MENTOR_BACK, payload="mstudents"))
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def reflect_outcome_kb() -> "object":
+    """Итог по цели в рефлексии. Степень достижения не оценивается — это лишь отправная точка."""
+    kb = InlineKeyboardBuilder()
+    kb.add(CallbackButton(text=texts.BTN_RO_ACHIEVED, payload="ro:achieved"))
+    kb.add(CallbackButton(text=texts.BTN_RO_PARTIAL, payload="ro:partial"))
+    kb.add(CallbackButton(text=texts.BTN_RO_NOT, payload="ro:not_achieved"))
+    kb.add(CallbackButton(text=texts.BTN_RO_IRRELEVANT, payload="ro:irrelevant"))
     kb.adjust(1)
     return kb.as_markup()

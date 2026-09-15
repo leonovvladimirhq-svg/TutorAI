@@ -39,6 +39,10 @@ class Student(Base):
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # {block_key: "done" | "in_progress"} — какие блоки профиля проработаны
     profiling_progress: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
+    # Когда студенту отправлено напоминание о рефлексии (по сроку из app_setting); шлём один раз.
+    reflection_reminded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -65,6 +69,9 @@ class AppUser(Base):
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     role: Mapped[str] = mapped_column(String(32))
     full_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Для студентов: telegram_id (MAX-ID) закреплённого наставника. Назначается
+    # руководителем в веб-панели; по нему наставник видит «своих» студентов.
+    mentor_tg: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -135,6 +142,16 @@ class Goal(Base):
     source_ref: Mapped[int | None] = mapped_column(
         ForeignKey("conversation_message.id", ondelete="SET NULL"), nullable=True
     )
+    # Контур подтверждения наставником: pending → confirmed | rejected.
+    # При отклонении наставник пишет причину — она уходит студенту и хранится здесь.
+    confirm_status: Mapped[str] = mapped_column(
+        String(16), default="pending", server_default="pending"
+    )
+    mentor_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Актуализация: если цель перестала быть актуальной, студент отмечает это
+    # (status → dropped) и поясняет почему.
+    relevance_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -143,6 +160,9 @@ class Goal(Base):
     )
 
     student: Mapped["Student"] = relationship(back_populates="goals")
+    reflections: Mapped[list["GoalReflection"]] = relationship(
+        back_populates="goal", cascade="all, delete-orphan"
+    )
 
     def is_complete(self) -> bool:
         """Все 5 компонентов SMART заполнены."""
@@ -201,4 +221,68 @@ class Feedback(Base):
     ref_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ReflectionSession(Base):
+    """Одно подведение итогов по целям (рефлексия) за период.
+
+    Порядок по требованию заказчика: сначала студент САМ формулирует
+    закономерности (student_patterns), и только потом ИИ даёт сводку (ai_summary).
+    completed_at пуст, пока сессия не завершена.
+    """
+    __tablename__ = "reflection_session"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("student.id", ondelete="CASCADE"), index=True
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    student_patterns: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    goal_reflections: Mapped[list["GoalReflection"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
+
+
+class GoalReflection(Base):
+    """Рефлексия студента по одной цели внутри сессии.
+
+    outcome — achieved | partial | not_achieved | irrelevant.
+    answers — {ключ вопроса: ответ}: what_done, why, thanks_to, differently,
+    self_assess, mentor_assess, praise. Степень достижения НЕ оценивается —
+    предмет оценки наставника только глубина рефлексии.
+    """
+    __tablename__ = "goal_reflection"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("reflection_session.id", ondelete="CASCADE"), index=True
+    )
+    goal_id: Mapped[int] = mapped_column(ForeignKey("goal.id", ondelete="CASCADE"), index=True)
+    outcome: Mapped[str] = mapped_column(String(16))
+    answers: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    session: Mapped["ReflectionSession"] = relationship(back_populates="goal_reflections")
+    goal: Mapped["Goal"] = relationship(back_populates="reflections")
+
+
+class AppSetting(Base):
+    """Настройки периода, задаваемые руководителем в веб-панели (key → value).
+
+    Ключи: goals_deadline, reflection_deadline (даты YYYY-MM-DD).
+    """
+    __tablename__ = "app_setting"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

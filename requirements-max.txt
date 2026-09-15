@@ -3,6 +3,7 @@
 # Поэтому MAX-бот собирается со своим набором зависимостей (без aiogram/aiohttp-socks);
 # остальной стек (БД, LLM, веб-панель) общий с Telegram-версией.
 maxapi==1.2.1
+python-docx==1.1.2
 SQLAlchemy[asyncio]==2.0.35
 asyncpg==0.29.0
 alembic==1.13.3

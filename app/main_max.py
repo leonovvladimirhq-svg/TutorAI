@@ -7,14 +7,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import date
 
 from maxapi import Bot, Dispatcher
 
 from app.config import settings
 from app.db.seed import seed_profiles
 from app.db.session import AsyncSessionLocal
-from app.maxbot.handlers import dialogue, fallback, feedback, goals, profile, start, voice
+from app.maxbot.handlers import dialogue, fallback, feedback, goals, mentor, profile, reflect, start, voice
 from app.maxbot.middleware import DbSessionMiddleware
+from app.bot import texts
+from app.db import crud
+from app.maxbot.common import send_to
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +31,40 @@ def build_dispatcher() -> Dispatcher:
     # state-хендлеры перехватят аудио), fallback — последним.
     dp.include_routers(
         start.router,
+        mentor.router,
         voice.router,
         dialogue.router,
         goals.router,
+        reflect.router,
         profile.router,
         feedback.router,
         fallback.router,
     )
     return dp
+
+
+REMINDER_INTERVAL_SEC = 3600
+
+
+async def reflection_reminder_loop(bot) -> None:
+    """Раз в час: если наступил срок рефлексии (app_setting.reflection_deadline),
+    напомнить каждому студенту, который ещё не подвёл итоги. Один раз на студента."""
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                deadline = await crud.get_setting(session, "reflection_deadline")
+                if deadline and date.today() >= date.fromisoformat(deadline):
+                    for student in await crud.list_students_for_reminder(session):
+                        if not student.telegram_id:
+                            continue
+                        if await crud.latest_completed_reflection(session, student.id):
+                            await crud.set_reflection_reminded(session, student)  # уже прошёл — не беспокоим
+                            continue
+                        if await send_to(bot, student.telegram_id, texts.REFLECT_REMINDER):
+                            await crud.set_reflection_reminded(session, student)
+        except Exception:  # noqa: BLE001
+            logger.exception("Ошибка в цикле напоминаний о рефлексии")
+        await asyncio.sleep(REMINDER_INTERVAL_SEC)
 
 
 async def on_startup() -> None:
@@ -56,6 +86,7 @@ async def main() -> None:
     dp = build_dispatcher()
 
     logger.info("MAX бот запускается (long-polling)…")
+    asyncio.create_task(reflection_reminder_loop(bot))
     await dp.start_polling(bot)
 
 

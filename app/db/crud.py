@@ -7,12 +7,15 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    AppSetting,
     AppUser,
     ConsentRecord,
     ConversationMessage,
     Feedback,
     Goal,
+    GoalReflection,
     ProfileAttribute,
+    ReflectionSession,
     Student,
 )
 
@@ -344,3 +347,171 @@ async def list_feedback(session: AsyncSession, limit: int = 200) -> list[Feedbac
         select(Feedback).order_by(Feedback.id.desc()).limit(limit)
     )
     return list(result.all())
+
+
+# --- Модуль наставника: привязка, подтверждение целей ----------------------
+
+async def set_app_user_mentor(session: AsyncSession, user_id: int, mentor_tg: int | None) -> None:
+    """Закрепить (или снять) наставника за студентом в реестре ролей."""
+    user = await session.get(AppUser, user_id)
+    if user is not None:
+        user.mentor_tg = mentor_tg
+        await session.commit()
+
+
+async def list_mentors(session: AsyncSession) -> list[AppUser]:
+    result = await session.scalars(
+        select(AppUser).where(AppUser.role == "mentor").order_by(AppUser.full_name, AppUser.id)
+    )
+    return list(result.all())
+
+
+async def list_students_of_mentor(session: AsyncSession, mentor_tg: int) -> list[AppUser]:
+    """Студенты (записи реестра ролей), закреплённые за наставником."""
+    result = await session.scalars(
+        select(AppUser)
+        .where(AppUser.role == "student", AppUser.mentor_tg == mentor_tg)
+        .order_by(AppUser.full_name, AppUser.id)
+    )
+    return list(result.all())
+
+
+async def get_goal(session: AsyncSession, goal_id: int) -> Goal | None:
+    return await session.get(Goal, goal_id)
+
+
+async def set_goal_confirm(
+    session: AsyncSession, goal_id: int, status: str, comment: str | None = None
+) -> Goal | None:
+    """Наставник подтвердил (confirmed) или отклонил (rejected) цель."""
+    goal = await session.get(Goal, goal_id)
+    if goal is None:
+        return None
+    goal.confirm_status = status
+    goal.mentor_comment = comment
+    goal.confirmed_at = datetime.now(timezone.utc) if status == "confirmed" else None
+    await session.commit()
+    await session.refresh(goal)
+    return goal
+
+
+async def set_goal_irrelevant(session: AsyncSession, goal_id: int, note: str | None) -> None:
+    """Актуализация: студент отметил, что цель больше не актуальна."""
+    goal = await session.get(Goal, goal_id)
+    if goal is not None:
+        goal.status = "dropped"
+        goal.relevance_note = note
+        await session.commit()
+
+
+# --- Настройки периода (app_setting) ---------------------------------------
+
+async def get_setting(session: AsyncSession, key: str) -> str | None:
+    row = await session.get(AppSetting, key)
+    return row.value if row is not None else None
+
+
+async def set_setting(session: AsyncSession, key: str, value: str | None) -> None:
+    row = await session.get(AppSetting, key)
+    if row is None:
+        session.add(AppSetting(key=key, value=value))
+    else:
+        row.value = value
+    await session.commit()
+
+
+# --- Рефлексия (reflection_session / goal_reflection) ----------------------
+
+async def create_reflection_session(session: AsyncSession, student_id: int) -> ReflectionSession:
+    rs = ReflectionSession(student_id=student_id)
+    session.add(rs)
+    await session.commit()
+    await session.refresh(rs)
+    return rs
+
+
+async def add_goal_reflection(
+    session: AsyncSession, session_id: int, goal_id: int, outcome: str, answers: dict
+) -> GoalReflection:
+    gr = GoalReflection(session_id=session_id, goal_id=goal_id, outcome=outcome, answers=answers)
+    session.add(gr)
+    await session.commit()
+    await session.refresh(gr)
+    return gr
+
+
+async def complete_reflection_session(
+    session: AsyncSession, session_id: int, student_patterns: str | None, ai_summary: str | None
+) -> None:
+    rs = await session.get(ReflectionSession, session_id)
+    if rs is not None:
+        rs.student_patterns = student_patterns
+        rs.ai_summary = ai_summary
+        rs.completed_at = datetime.now(timezone.utc)
+        await session.commit()
+
+
+async def latest_completed_reflection(
+    session: AsyncSession, student_id: int
+) -> ReflectionSession | None:
+    result = await session.scalars(
+        select(ReflectionSession)
+        .where(ReflectionSession.student_id == student_id, ReflectionSession.completed_at.is_not(None))
+        .order_by(ReflectionSession.completed_at.desc())
+        .limit(1)
+    )
+    return result.first()
+
+
+async def list_goal_reflections(session: AsyncSession, session_id: int) -> list[GoalReflection]:
+    result = await session.scalars(
+        select(GoalReflection).where(GoalReflection.session_id == session_id).order_by(GoalReflection.id)
+    )
+    return list(result.all())
+
+
+async def set_reflection_reminded(session: AsyncSession, student: Student) -> None:
+    student.reflection_reminded_at = datetime.now(timezone.utc)
+    await session.commit()
+
+
+async def list_students_for_reminder(session: AsyncSession) -> list[Student]:
+    """Студенты с согласием, которым напоминание о рефлексии ещё не отправлялось."""
+    result = await session.scalars(
+        select(Student).where(
+            Student.consent_at.is_not(None), Student.reflection_reminded_at.is_(None)
+        )
+    )
+    return list(result.all())
+
+
+# --- Сводка для руководителя -----------------------------------------------
+
+async def director_stats(session: AsyncSession) -> list[dict]:
+    """По каждому студенту: наставник, цели и их подтверждение, рефлексия.
+
+    Возвращает список словарей — удобно для шаблона панели.
+    """
+    users = await session.scalars(
+        select(AppUser).where(AppUser.role == "student").order_by(AppUser.full_name, AppUser.id)
+    )
+    mentors = {m.telegram_id: m for m in await list_mentors(session)}
+    rows: list[dict] = []
+    for u in users.all():
+        student = await get_student_by_tg(session, u.telegram_id)
+        goals = await list_goals(session, student.id) if student else []
+        refl = await latest_completed_reflection(session, student.id) if student else None
+        first_goal_at = min((g.created_at for g in goals), default=None)
+        mentor = mentors.get(u.mentor_tg) if u.mentor_tg else None
+        rows.append({
+            "user": u,
+            "mentor": mentor,
+            "has_consent": bool(student and student.consent_at),
+            "goals_total": len(goals),
+            "goals_confirmed": sum(1 for g in goals if g.confirm_status == "confirmed"),
+            "goals_rejected": sum(1 for g in goals if g.confirm_status == "rejected"),
+            "goals_pending": sum(1 for g in goals if g.confirm_status == "pending"),
+            "first_goal_at": first_goal_at,
+            "reflection_done_at": refl.completed_at if refl else None,
+        })
+    return rows

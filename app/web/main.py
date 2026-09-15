@@ -74,11 +74,17 @@ async def dashboard(request: Request, session: AsyncSession = Depends(get_sessio
     if not _is_authed(request):
         return RedirectResponse("/login", status_code=303)
     users = await crud.list_app_users(session)
+    mentors = await crud.list_mentors(session)
+    goals_deadline = await crud.get_setting(session, "goals_deadline")
+    reflection_deadline = await crud.get_setting(session, "reflection_deadline")
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "users": users,
+            "mentors": mentors,
+            "goals_deadline": goals_deadline or "",
+            "reflection_deadline": reflection_deadline or "",
             "roles": ROLES,
             "role_labels": ROLE_LABELS,
             "role_descriptions": ROLE_DESCRIPTIONS,
@@ -144,3 +150,58 @@ async def delete_user(
         return RedirectResponse("/login", status_code=303)
     await crud.delete_app_user(session, user_id)
     return RedirectResponse("/dashboard?notice=Удалено", status_code=303)
+
+
+# --- Модуль наставника: привязка, сроки, сводка ----------------------------
+
+@app.post("/users/{user_id}/mentor")
+async def change_mentor(
+    request: Request,
+    user_id: int,
+    mentor_tg: str = Form(""),
+    session: AsyncSession = Depends(get_session),
+):
+    """Закрепить наставника за студентом (пустое значение — снять)."""
+    if not _is_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    value: int | None
+    try:
+        value = int(mentor_tg) if mentor_tg.strip() else None
+    except ValueError:
+        return RedirectResponse("/dashboard?error=Некорректный+наставник", status_code=303)
+    await crud.set_app_user_mentor(session, user_id, value)
+    return RedirectResponse("/dashboard?notice=Наставник+обновлён", status_code=303)
+
+
+@app.post("/settings")
+async def save_settings(
+    request: Request,
+    goals_deadline: str = Form(""),
+    reflection_deadline: str = Form(""),
+    session: AsyncSession = Depends(get_session),
+):
+    """Сроки периода: подача целей и рефлексия (даты YYYY-MM-DD, пусто — снять)."""
+    if not _is_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    await crud.set_setting(session, "goals_deadline", goals_deadline.strip() or None)
+    await crud.set_setting(session, "reflection_deadline", reflection_deadline.strip() or None)
+    return RedirectResponse("/dashboard?notice=Сроки+сохранены", status_code=303)
+
+
+@app.get("/stats", response_class=HTMLResponse)
+async def stats(request: Request, session: AsyncSession = Depends(get_session)):
+    """Сводка для академического руководителя: кто подтверждён, кто ничего не прислал."""
+    if not _is_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    rows = await crud.director_stats(session)
+    goals_deadline = await crud.get_setting(session, "goals_deadline")
+    reflection_deadline = await crud.get_setting(session, "reflection_deadline")
+    return templates.TemplateResponse(
+        request,
+        "stats.html",
+        {
+            "rows": rows,
+            "goals_deadline": goals_deadline,
+            "reflection_deadline": reflection_deadline,
+        },
+    )

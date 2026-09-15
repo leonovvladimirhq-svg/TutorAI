@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TutorAI — сводка руководителя</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; background: #f4f2fa; margin: 0; color: #333; }
+    header { background: #6c5ce7; color: #fff; padding: 16px 24px; display: flex;
+             justify-content: space-between; align-items: center; }
+    header h1 { font-size: 18px; margin: 0; }
+    header a { color: #fff; font-size: 13px; text-decoration: none; opacity: .9; }
+    main { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.06);
+            padding: 20px; margin-bottom: 22px; }
+    h2 { font-size: 15px; margin: 0 0 14px; color: #5b4b9e; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eee; font-size: 14px; vertical-align: top; }
+    th { color: #999; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+    code { background: #f0eefa; padding: 2px 6px; border-radius: 5px; }
+    .ok { color: #1e8449; font-weight: 600; }
+    .warn { color: #b7791f; font-weight: 600; }
+    .bad { color: #c0392b; font-weight: 600; }
+    .muted { color: #999; }
+    .kpi { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+    .kpi div { background: #f7f6fc; border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+    .kpi b { display: block; font-size: 20px; color: #5b4b9e; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TutorAI · Сводка для руководителя</h1>
+    <div>
+      <a href="/dashboard" style="margin-right:16px">Роли</a>
+      <a href="/feedback" style="margin-right:16px">Обратная связь</a>
+      <a href="/logout">Выйти</a>
+    </div>
+  </header>
+  <main>
+    {% set total = rows|length %}
+    {% set with_goals = rows|selectattr("goals_total")|list|length %}
+    {% set confirmed_all = rows|selectattr("goals_total")|rejectattr("goals_pending")|rejectattr("goals_rejected")|list|length %}
+    {% set no_goals = total - with_goals %}
+    {% set reflected = rows|selectattr("reflection_done_at")|list|length %}
+    <div class="card">
+      <h2>Контроль периода</h2>
+      <div class="kpi">
+        <div><b>{{ total }}</b>студентов</div>
+        <div><b>{{ with_goals }}</b>прислали цели</div>
+        <div><b class="{{ 'bad' if no_goals else 'ok' }}">{{ no_goals }}</b>ничего не прислали</div>
+        <div><b>{{ confirmed_all }}</b>все цели подтверждены</div>
+        <div><b>{{ reflected }}</b>прошли рефлексию</div>
+      </div>
+      <p class="muted" style="margin:8px 0 0;font-size:13px">
+        Срок подачи целей: <b>{{ goals_deadline or "не задан" }}</b> ·
+        Срок рефлексии: <b>{{ reflection_deadline or "не задан" }}</b>
+        (задаются на странице «Роли» → «Сроки периода»)
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>По студентам</h2>
+      {% if rows %}
+      <table>
+        <thead>
+          <tr>
+            <th>Студент</th><th>Наставник</th><th>Согласие</th>
+            <th>Цели</th><th>Подтверждено</th><th>Отклонено</th><th>Ждут</th>
+            <th>Первая цель</th><th>Рефлексия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.user.full_name or "—" }}<br><code>{{ r.user.telegram_id }}</code></td>
+            <td>{% if r.mentor %}{{ r.mentor.full_name or r.mentor.telegram_id }}{% else %}<span class="bad">не назначен</span>{% endif %}</td>
+            <td>{% if r.has_consent %}<span class="ok">да</span>{% else %}<span class="muted">нет</span>{% endif %}</td>
+            <td>{% if r.goals_total %}{{ r.goals_total }}{% else %}<span class="bad">0 — ничего не прислал</span>{% endif %}</td>
+            <td>{% if r.goals_confirmed %}<span class="ok">{{ r.goals_confirmed }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+            <td>{% if r.goals_rejected %}<span class="bad">{{ r.goals_rejected }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+            <td>{% if r.goals_pending %}<span class="warn">{{ r.goals_pending }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+            <td>{% if r.first_goal_at %}{{ r.first_goal_at.strftime("%d.%m.%Y") }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>{% if r.reflection_done_at %}<span class="ok">{{ r.reflection_done_at.strftime("%d.%m.%Y") }}</span>{% else %}<span class="muted">нет</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">Студентов пока нет — назначьте роли на странице «Роли».</p>
+      {% endif %}
+    </div>
+  </main>
+</body>
+</html>

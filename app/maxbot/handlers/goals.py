@@ -9,13 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import texts
 from app.db import crud
-from app.maxbot.common import ack, clear_markup, reply
+from app.maxbot.common import ack, clear_markup, reply, send_to
 from app.maxbot.keyboards import (
     feedback_rating_kb,
     goal_draft_kb,
     goal_eval_kb,
     goal_templates_kb,
     goals_menu_kb,
+    mentor_confirm_kb,
 )
 from app.maxbot.states import Goals
 from app.services import smart
@@ -107,6 +108,24 @@ async def _evaluate_and_coach(
         await reply(event, _format_evaluation(evaluation), goal_eval_kb())
 
 
+async def _notify_mentor(event, session: AsyncSession, student, goal) -> None:
+    """Контур подтверждения: отправить новую цель закреплённому наставнику с кнопками."""
+    app_user = await crud.get_app_user_by_tg(session, event.from_user.user_id)
+    mentor_tg = app_user.mentor_tg if app_user else None
+    if not mentor_tg:
+        await reply(event, texts.GOAL_NO_MENTOR)
+        return
+    student_name = (app_user.full_name if app_user and app_user.full_name else f"ID {event.from_user.user_id}")
+    text = texts.MENTOR_NEW_GOAL.format(
+        student=student_name, title=goal.title,
+        specific=goal.specific or "—", measurable=goal.measurable or "—",
+        achievable=goal.achievable or "—", relevant=goal.relevant or "—",
+        time_bound=goal.time_bound or "—",
+    )
+    ok = await send_to(event.bot, mentor_tg, text, mentor_confirm_kb(goal.id))
+    await reply(event, texts.GOAL_SENT_TO_MENTOR if ok else texts.GOAL_NO_MENTOR)
+
+
 @router.message_callback(F.callback.payload == "menu:goals")
 async def menu_goals(event: MessageCallback, session: AsyncSession, context: MemoryContext) -> None:
     student = await crud.get_student_by_tg(session, event.from_user.user_id)
@@ -190,6 +209,7 @@ async def goal_save(event: MessageCallback, session: AsyncSession, context: Memo
     await context.clear()
     await clear_markup(event, notification=texts.GOAL_SAVED)
     await reply(event, texts.GOAL_SAVED)
+    await _notify_mentor(event, session, student, goal)
     await _render_goals(event, session, student.id)
     # Контекстная обратная связь по формулировке цели (👍/👎 + комментарий).
     await reply(event, texts.FEEDBACK_ASK_GOAL, feedback_rating_kb("smart_goal", goal.id))
@@ -217,6 +237,7 @@ async def goal_keep(event: MessageCallback, session: AsyncSession, context: Memo
     await context.clear()
     await clear_markup(event, notification=texts.GOAL_SAVED)
     await reply(event, texts.GOAL_KEPT)
+    await _notify_mentor(event, session, student, goal)
     await _render_goals(event, session, student.id)
     await reply(event, texts.FEEDBACK_ASK_GOAL, feedback_rating_kb("smart_goal", goal.id))
 

@@ -61,3 +61,18 @@ async def clear_markup(cb, notification: str | None = None) -> None:
 
 async def show_main_menu(event) -> None:
     await reply(event, texts.MENU_TITLE, main_menu_kb())
+
+
+async def send_to(bot, user_id: int, text: str, kb=None) -> bool:
+    """Отправить сообщение другому пользователю по его MAX-ID (уведомления между ролями).
+
+    Возвращает False, если доставить не удалось (например, адресат ещё не открывал бота) —
+    сценарий отправителя при этом не ломаем.
+    """
+    try:
+        await bot.send_message(user_id=user_id, text=text, attachments=_atts(kb), parse_mode=ParseMode.HTML)
+        return True
+    except Exception:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("Не удалось отправить сообщение пользователю %s", user_id)
+        return False

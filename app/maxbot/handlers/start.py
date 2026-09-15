@@ -19,10 +19,11 @@ from app.maxbot.keyboards import (
     consent_kb,
     forget_me_confirm_kb,
     main_menu_kb,
+    mentor_menu_kb,
 )
 from app.services import consent, kpi
 from app.services.events import log_event
-from app.services.roles import ROLE_STUDENT, role_label
+from app.services.roles import ROLE_MENTOR, ROLE_STUDENT, role_label
 
 router = Router()
 
@@ -56,6 +57,9 @@ async def _do_start(event, session: AsyncSession, context: MemoryContext) -> Non
 
 
 async def _route_by_role(event, session: AsyncSession, role: str) -> None:
+    if role == ROLE_MENTOR:
+        await reply(event, texts.GREETING_MENTOR, mentor_menu_kb())
+        return
     if role != ROLE_STUDENT:
         await reply(event, texts.GREETING_ROLE_ONLY.format(role=role_label(role)))
         return
@@ -106,6 +110,8 @@ async def consent_accept(
         await log_event(session, student.id, "auth_success", {"role": app_user.role})
         await edit(event, texts.GREETING_STUDENT.format(role=role_label(app_user.role)))
         await show_main_menu(event)
+    elif app_user.role == ROLE_MENTOR:
+        await edit(event, texts.GREETING_MENTOR, mentor_menu_kb())
     else:
         await edit(event, texts.GREETING_ROLE_ONLY.format(role=role_label(app_user.role)))
 
@@ -116,6 +122,10 @@ async def consent_accept(
 async def cmd_menu(event: MessageCreated, session: AsyncSession, context: MemoryContext) -> None:
     uid = event.from_user.user_id
     role = await crud.get_role_by_tg(session, uid)
+    if role == ROLE_MENTOR:
+        await context.clear()
+        await reply(event, texts.GREETING_MENTOR, mentor_menu_kb())
+        return
     if role != ROLE_STUDENT:
         await reply(event, texts.NOT_AUTHED)
         return
