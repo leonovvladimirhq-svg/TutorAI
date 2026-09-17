@@ -44,6 +44,8 @@ services:
       - .env
     volumes:
       - ./secrets:/secrets:ro
+    ports:
+      - "8090:8090"   # вебхук MAX (за HTTPS-фасадом API Gateway); в polling-режиме не используется
     command: ["python", "-m", "app.main_max"]
 
   # Веб-панель академического руководителя (управление ролями).

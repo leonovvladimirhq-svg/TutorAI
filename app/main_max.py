@@ -135,9 +135,36 @@ async def main() -> None:
     except Exception:  # noqa: BLE001
         logger.exception("Не удалось установить команды бота (не критично)")
 
-    logger.info("MAX бот запускается (long-polling)…")
     asyncio.create_task(reflection_reminder_loop(bot))
+    if settings.max_webhook_url:
+        await _ensure_webhook_subscription(bot)
+        logger.info("MAX бот запускается (webhook :%s, %s)…", settings.max_webhook_port, settings.max_webhook_url)
+        await dp.handle_webhook(
+            bot, host="0.0.0.0", port=settings.max_webhook_port, path="/max/webhook",
+            secret=settings.max_webhook_secret or None,
+        )
+        return
+    logger.info("MAX бот запускается (long-polling)…")
     await dp.start_polling(bot)
+
+
+async def _ensure_webhook_subscription(bot) -> None:
+    """Одна актуальная подписка: чужие/старые URL снимаем (MAX их копит, а не заменяет),
+    свою ставим, если её нет. Подписка сама отваливается после 8 ч без ответов 200."""
+    url = settings.max_webhook_url
+    subs = await bot.get_subscriptions()
+    present = False
+    for sub in subs.subscriptions:
+        if sub.url == url:
+            present = True
+            continue
+        logger.info("Снимаю старую подписку вебхука: %s", sub.url)
+        await bot.unsubscribe_webhook(sub.url)
+    if not present:
+        await bot.subscribe_webhook(url=url, secret=settings.max_webhook_secret or None)
+        logger.info("Подписка вебхука оформлена: %s", url)
+    else:
+        logger.info("Подписка вебхука уже есть: %s", url)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     # MAX (мессенджер) — токен бота от @MasterBot. Транспорт-слой в app/maxbot/,
     # entrypoint app/main_max.py. MAX доступен из YC (в отличие от Telegram).
     max_bot_token: str = ""
+    # Режим получения апдейтов MAX. Пусто — long-polling. Если задан URL вебхука
+    # (HTTPS-фасад: Yandex API Gateway → http://<vm>:MAX_WEBHOOK_PORT/max/webhook) —
+    # бот поднимает aiohttp-сервер и подписывается сам. Причина: в long-polling MAX
+    # присылает голосовые «пустым» message_created (без message) — см. app/main_max.py.
+    max_webhook_url: str = ""
+    max_webhook_secret: str = ""
+    max_webhook_port: int = 8090
 
     # Дашборд мониторинга проектов (http://89.169.146.175:8080). Пусто = ничего не шлём.
     dashboard_url: str = ""
