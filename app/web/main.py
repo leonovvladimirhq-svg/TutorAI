@@ -17,7 +17,15 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.db import crud
 from app.db.session import AsyncSessionLocal
-from app.services.roles import ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, is_valid_role
+from app.services.roles import (
+    ROLE_DESCRIPTIONS,
+    ROLE_DIRECTOR,
+    ROLE_LABELS,
+    ROLE_MENTOR,
+    ROLE_STUDENT,
+    ROLES,
+    is_valid_role,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -205,3 +213,83 @@ async def stats(request: Request, session: AsyncSession = Depends(get_session)):
             "reflection_deadline": reflection_deadline,
         },
     )
+
+
+# --- Коды доступа -----------------------------------------------------------
+
+@app.get("/codes", response_class=HTMLResponse)
+async def codes_page(request: Request, session: AsyncSession = Depends(get_session)):
+    """Коды доступа: сгенерировать набор, раздать, видеть, кто активировал."""
+    if not _is_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    codes = await crud.list_access_codes(session)
+    users = {u.telegram_id: u for u in await crud.list_app_users(session)}
+    mentors = await crud.list_mentors(session)
+    return templates.TemplateResponse(
+        request,
+        "codes.html",
+        {
+            "codes": codes,
+            "users": users,
+            "mentors": mentors,
+            "role_labels": ROLE_LABELS,
+            "format_code": crud.format_code,
+            "notice": request.query_params.get("notice"),
+            "error": request.query_params.get("error"),
+        },
+    )
+
+
+@app.post("/codes/generate")
+async def codes_generate(
+    request: Request,
+    students: int = Form(8),
+    mentors: int = Form(2),
+    directors: int = Form(1),
+    session: AsyncSession = Depends(get_session),
+):
+    if not _is_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    total = 0
+    for role, count, prefix in (
+        (ROLE_STUDENT, students, "Студент"),
+        (ROLE_MENTOR, mentors, "Наставник"),
+        (ROLE_DIRECTOR, directors, "Руководитель"),
+    ):
+        count = max(0, min(int(count), 100))
+        if count:
+            total += len(await crud.create_access_codes(session, role, count, prefix))
+    return RedirectResponse(f"/codes?notice=Создано+кодов:+{total}", status_code=303)
+
+
+@app.post("/codes/{code_id}/mentor")
+async def code_mentor(
+    request: Request,
+    code_id: int,
+    mentor_tg: str = Form(""),
+    session: AsyncSession = Depends(get_session),
+):
+    if not _is_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    try:
+        value = int(mentor_tg) if mentor_tg.strip() else None
+    except ValueError:
+        return RedirectResponse("/codes?error=Некорректный+наставник", status_code=303)
+    await crud.set_access_code_mentor(session, code_id, value)
+    return RedirectResponse("/codes?notice=Наставник+закреплён+за+кодом", status_code=303)
+
+
+@app.post("/codes/{code_id}/release")
+async def code_release(request: Request, code_id: int, session: AsyncSession = Depends(get_session)):
+    if not _is_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    await crud.release_access_code(session, code_id)
+    return RedirectResponse("/codes?notice=Код+освобождён", status_code=303)
+
+
+@app.post("/codes/{code_id}/delete")
+async def code_delete(request: Request, code_id: int, session: AsyncSession = Depends(get_session)):
+    if not _is_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    await crud.delete_access_code(session, code_id)
+    return RedirectResponse("/codes?notice=Код+удалён", status_code=303)

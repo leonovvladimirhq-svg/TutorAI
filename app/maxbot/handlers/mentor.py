@@ -127,6 +127,31 @@ async def student_report(event: MessageCallback, session: AsyncSession) -> None:
         await reply(event, texts.MENTOR_REPORT_FAILED)
 
 
+@router.message_callback(F.callback.payload == "mreport_all")
+async def group_report(event: MessageCallback, session: AsyncSession) -> None:
+    """Общий отчёт по всем студентам наставника одним .docx (сводка + карта каждого)."""
+    tg = event.from_user.user_id
+    mentor_user = await crud.get_app_user_by_tg(session, tg)
+    if mentor_user is None or mentor_user.role != ROLE_MENTOR:
+        await ack(event, notification=texts.MENTOR_ONLY)
+        return
+    if not await crud.list_students_of_mentor(session, tg):
+        await edit(event, texts.MENTOR_NO_STUDENTS, mentor_menu_kb())
+        return
+    await ack(event, notification=texts.MENTOR_REPORT_BUILDING)
+    try:
+        data, filename, count = await report.build_group_report(session, mentor_user)
+        media = InputMediaBuffer(buffer=data, filename=filename, type=UploadType.FILE)
+        await event.message.answer(
+            texts.MENTOR_REPORT_ALL_CAPTION.format(count=count),
+            attachments=[media], parse_mode=ParseMode.HTML,
+        )
+        await log_event(session, None, "mentor_group_report", {"mentor": tg, "students": count})
+    except Exception:  # noqa: BLE001
+        logger.exception("Ошибка формирования общего отчёта для наставника %s", tg)
+        await reply(event, texts.MENTOR_REPORT_FAILED)
+
+
 # --- Контур подтверждения целей --------------------------------------------
 
 async def _goal_for_mentor(session: AsyncSession, mentor_tg: int, goal_id: int):

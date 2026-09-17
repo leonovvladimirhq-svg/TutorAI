@@ -6,8 +6,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# ffmpeg — перекодирование голосовых MAX (контейнер отличается от OggOpus) для SpeechKit.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+    ca-certificates ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Отдельный набор зависимостей MAX (maxapi несовместим с aiogram по aiohttp).

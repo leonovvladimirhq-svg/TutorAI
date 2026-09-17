@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    AccessCode,
     AppSetting,
     AppUser,
     ConsentRecord,
@@ -293,20 +294,24 @@ async def collect_my_data(session: AsyncSession, telegram_id: int) -> dict:
 
 
 async def forget_me(session: AsyncSession, telegram_id: int) -> None:
-    """Удаляет персональные данные пользователя (152-ФЗ, /forget_me).
+    """Удаляет персональные данные пользователя (152-ФЗ, /forget_me) — полный сброс.
 
-    Удаляется студенческая запись (каскадом — профиль, цели, сообщения);
-    имя в реестре ролей обезличивается. Записи consent_record сохраняются как
-    аудит-след, event_log/feedback обезличиваются (student_id → NULL по FK).
-    Роль (app_user) не удаляется, чтобы не ломать доступ; при желании её снимут
-    в веб-панели.
+    Удаляется студенческая запись (каскадом — профиль, цели, сообщения, рефлексия)
+    и запись в реестре ролей (app_user). Код доступа, по которому человек вошёл,
+    освобождается: его можно ввести заново и начать с самого начала — с согласия
+    и пустого профиля. Наставник, закреплённый за кодом, при этом сохраняется.
+    Записи consent_record остаются как аудит-след (отзыв согласия фиксируется отдельно);
+    event_log/feedback обезличиваются (student_id → NULL по FK).
     """
     student = await get_student_by_tg(session, telegram_id)
     if student is not None:
         await session.delete(student)  # каскад по FK на дочерние таблицы
     app_user = await get_app_user_by_tg(session, telegram_id)
     if app_user is not None:
-        app_user.full_name = None
+        await session.delete(app_user)
+    for code in await session.scalars(select(AccessCode).where(AccessCode.used_by_tg == telegram_id)):
+        code.used_by_tg = None
+        code.used_at = None
     await session.commit()
 
 
@@ -352,10 +357,16 @@ async def list_feedback(session: AsyncSession, limit: int = 200) -> list[Feedbac
 # --- Модуль наставника: привязка, подтверждение целей ----------------------
 
 async def set_app_user_mentor(session: AsyncSession, user_id: int, mentor_tg: int | None) -> None:
-    """Закрепить (или снять) наставника за студентом в реестре ролей."""
+    """Закрепить (или снять) наставника за студентом в реестре ролей.
+
+    Привязка дублируется в код доступа, по которому студент вошёл, — чтобы она
+    пережила /forget_me и повторный ввод того же кода.
+    """
     user = await session.get(AppUser, user_id)
     if user is not None:
         user.mentor_tg = mentor_tg
+        for code in await session.scalars(select(AccessCode).where(AccessCode.used_by_tg == user.telegram_id)):
+            code.mentor_tg = mentor_tg
         await session.commit()
 
 
@@ -451,6 +462,14 @@ async def complete_reflection_session(
         await session.commit()
 
 
+async def delete_reflection_session(session: AsyncSession, session_id: int) -> None:
+    """Убрать пустую сессию (студент завершил досрочно, ничего не ответив)."""
+    rs = await session.get(ReflectionSession, session_id)
+    if rs is not None:
+        await session.delete(rs)
+        await session.commit()
+
+
 async def latest_completed_reflection(
     session: AsyncSession, student_id: int
 ) -> ReflectionSession | None:
@@ -515,3 +534,104 @@ async def director_stats(session: AsyncSession) -> list[dict]:
             "reflection_done_at": refl.completed_at if refl else None,
         })
     return rows
+
+
+# --- Коды доступа (access_code) --------------------------------------------
+
+def _normalize_code(raw: str) -> str:
+    """Оставляем только цифры: студент может ввести код с пробелами или дефисами."""
+    return "".join(ch for ch in raw if ch.isdigit())
+
+
+def format_code(code: str) -> str:
+    """Читаемый вид кода: группы по 4 цифры."""
+    return " ".join(code[i:i + 4] for i in range(0, len(code), 4))
+
+
+def generate_code() -> str:
+    import secrets
+    return "".join(str(secrets.randbelow(10)) for _ in range(16))
+
+
+async def create_access_codes(
+    session: AsyncSession, role: str, count: int, label_prefix: str | None = None
+) -> list[AccessCode]:
+    """Сгенерировать count кодов для роли. label — «Студент 1», «Студент 2»…"""
+    existing = await session.scalar(select(func.count()).select_from(AccessCode).where(AccessCode.role == role))
+    start = (existing or 0) + 1
+    created: list[AccessCode] = []
+    for i in range(count):
+        code = generate_code()
+        while await session.scalar(select(AccessCode).where(AccessCode.code == code)) is not None:
+            code = generate_code()
+        label = f"{label_prefix} {start + i}" if label_prefix else None
+        ac = AccessCode(code=code, role=role, label=label)
+        session.add(ac)
+        created.append(ac)
+    await session.commit()
+    for ac in created:
+        await session.refresh(ac)
+    return created
+
+
+async def list_access_codes(session: AsyncSession) -> list[AccessCode]:
+    result = await session.scalars(select(AccessCode).order_by(AccessCode.role, AccessCode.id))
+    return list(result.all())
+
+
+async def get_access_code(session: AsyncSession, raw: str) -> AccessCode | None:
+    code = _normalize_code(raw)
+    if len(code) != 16:
+        return None
+    return await session.scalar(select(AccessCode).where(AccessCode.code == code))
+
+
+async def redeem_access_code(session: AsyncSession, ac: AccessCode, telegram_id: int, full_name: str | None) -> AppUser:
+    """Активировать код: создать/обновить запись в реестре ролей и отметить код использованным.
+
+    Наставник, закреплённый за кодом, переносится в app_user.mentor_tg.
+    """
+    user = await get_app_user_by_tg(session, telegram_id)
+    if user is None:
+        user = AppUser(telegram_id=telegram_id, role=ac.role, full_name=full_name)
+        session.add(user)
+    else:
+        user.role = ac.role
+        if full_name and not user.full_name:
+            user.full_name = full_name
+    if ac.role == "student":
+        user.mentor_tg = ac.mentor_tg
+    ac.used_by_tg = telegram_id
+    ac.used_at = datetime.now(timezone.utc)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def set_access_code_mentor(session: AsyncSession, code_id: int, mentor_tg: int | None) -> None:
+    """Закрепить наставника за кодом; если код уже активирован — и за пользователем."""
+    ac = await session.get(AccessCode, code_id)
+    if ac is None:
+        return
+    ac.mentor_tg = mentor_tg
+    if ac.used_by_tg is not None:
+        user = await get_app_user_by_tg(session, ac.used_by_tg)
+        if user is not None and user.role == "student":
+            user.mentor_tg = mentor_tg
+    await session.commit()
+
+
+async def release_access_code(session: AsyncSession, code_id: int) -> None:
+    """Освободить код (пользователь при этом не удаляется — для этого есть /forget_me)."""
+    ac = await session.get(AccessCode, code_id)
+    if ac is not None:
+        ac.used_by_tg = None
+        ac.used_at = None
+        await session.commit()
+
+
+async def delete_access_code(session: AsyncSession, code_id: int) -> None:
+    ac = await session.get(AccessCode, code_id)
+    if ac is not None:
+        await session.delete(ac)
+        await session.commit()

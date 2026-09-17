@@ -30,3 +30,8 @@ class Reflection(StatesGroup):
     answering = State()        # отвечает на коучинговые вопросы
     irrelevant_note = State()  # цель неактуальна — почему
     patterns = State()         # свои закономерности (до сводки ИИ)
+
+
+class Registration(StatesGroup):
+    """Вход по коду доступа (16 цифр) — до назначения роли."""
+    waiting_code = State()

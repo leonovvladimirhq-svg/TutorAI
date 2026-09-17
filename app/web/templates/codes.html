@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TutorAI — коды доступа</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; background: #f4f2fa; margin: 0; color: #333; }
+    header { background: #6c5ce7; color: #fff; padding: 16px 24px; display: flex;
+             justify-content: space-between; align-items: center; }
+    header h1 { font-size: 18px; margin: 0; }
+    header a { color: #fff; font-size: 13px; text-decoration: none; opacity: .9; }
+    main { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.06);
+            padding: 20px; margin-bottom: 22px; }
+    h2 { font-size: 15px; margin: 0 0 14px; color: #5b4b9e; }
+    form.inline { display: inline; margin: 0; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .row .field { display: flex; flex-direction: column; }
+    label { font-size: 12px; color: #777; margin-bottom: 3px; }
+    input, select { padding: 9px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+    input[type=number] { width: 70px; }
+    button { padding: 9px 14px; background: #6c5ce7; color: #fff; border: 0; border-radius: 8px;
+             font-size: 14px; cursor: pointer; }
+    button:hover { background: #5b4bd1; }
+    button.danger { background: #e74c3c; }
+    button.danger:hover { background: #c0392b; }
+    button.ghost { background: #eee; color: #444; }
+    button.ghost:hover { background: #ddd; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eee; font-size: 14px; vertical-align: middle; }
+    th { color: #999; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+    code { background: #f0eefa; padding: 2px 6px; border-radius: 5px; }
+    code.code { font-size: 16px; letter-spacing: 1px; }
+    .ok { color: #1e8449; font-weight: 600; }
+    .muted { color: #999; }
+    .notice { background: #e6f7ec; color: #1e8449; padding: 8px 12px; border-radius: 8px;
+              margin-bottom: 16px; font-size: 14px; }
+    .error { background: #ffe6e6; color: #c0392b; padding: 8px 12px; border-radius: 8px;
+             margin-bottom: 16px; font-size: 14px; }
+    .empty { color: #999; font-size: 14px; }
+    .help { color: #666; font-size: 13px; line-height: 1.5; }
+    @media print {
+      header, .card.noprint, form, button { display: none !important; }
+      body { background: #fff; }
+      .card { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TutorAI · Коды доступа</h1>
+    <div>
+      <a href="/dashboard" style="margin-right:16px">Роли</a>
+      <a href="/stats" style="margin-right:16px">Сводка</a>
+      <a href="/feedback" style="margin-right:16px">Обратная связь</a>
+      <a href="/logout">Выйти</a>
+    </div>
+  </header>
+  <main>
+    {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+    <div class="card noprint">
+      <h2>Как это работает</h2>
+      <p class="help">
+        Код — 16 цифр. Студент (или наставник) открывает бота в MAX, отправляет код и сразу получает роль,
+        записанную в коде; никакие ID собирать не нужно. Один код — один человек. Если студент выполнит
+        <code>/forget_me</code>, его данные и регистрация удаляются, а код освобождается: тот же код можно
+        ввести заново и начать с чистого листа. Наставник, закреплённый за кодом, при этом сохраняется —
+        поэтому удобно закрепить наставников за студенческими кодами до раздачи.
+      </p>
+      <form method="post" action="/codes/generate">
+        <div class="row">
+          <div class="field">
+            <label for="students">Студентов</label>
+            <input id="students" name="students" type="number" min="0" max="100" value="8">
+          </div>
+          <div class="field">
+            <label for="mentors">Наставников</label>
+            <input id="mentors" name="mentors" type="number" min="0" max="100" value="2">
+          </div>
+          <div class="field">
+            <label for="directors">Руководителей</label>
+            <input id="directors" name="directors" type="number" min="0" max="100" value="1">
+          </div>
+          <button type="submit">Сгенерировать набор</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Коды ({{ codes|length }})</h2>
+      {% if codes %}
+      <table>
+        <thead>
+          <tr><th>Метка</th><th>Роль</th><th>Код</th><th>Наставник</th><th>Статус</th><th class="noprint"></th></tr>
+        </thead>
+        <tbody>
+          {% for c in codes %}
+          <tr>
+            <td>{{ c.label or "—" }}</td>
+            <td>{{ role_labels.get(c.role, c.role) }}</td>
+            <td><code class="code">{{ format_code(c.code) }}</code></td>
+            <td>
+              {% if c.role == "student" %}
+              <form class="inline" method="post" action="/codes/{{ c.id }}/mentor">
+                <select name="mentor_tg" onchange="this.form.submit()">
+                  <option value="" {% if not c.mentor_tg %}selected{% endif %}>— не назначен —</option>
+                  {% for m in mentors %}
+                  <option value="{{ m.telegram_id }}" {% if m.telegram_id == c.mentor_tg %}selected{% endif %}>{{ m.full_name or m.telegram_id }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td>
+              {% if c.used_by_tg %}
+                {% set u = users.get(c.used_by_tg) %}
+                <span class="ok">активирован</span><br>
+                <span class="muted">{{ (u.full_name if u and u.full_name else "") }} <code>{{ c.used_by_tg }}</code>
+                {% if c.used_at %}· {{ c.used_at.strftime("%d.%m.%Y %H:%M") }}{% endif %}</span>
+              {% else %}
+                <span class="muted">свободен</span>
+              {% endif %}
+            </td>
+            <td class="noprint" style="white-space:nowrap">
+              {% if c.used_by_tg %}
+              <form class="inline" method="post" action="/codes/{{ c.id }}/release"
+                    onsubmit="return confirm('Освободить код? Пользователь останется в системе, но код можно будет ввести заново.');">
+                <button class="ghost" type="submit">Освободить</button>
+              </form>
+              {% endif %}
+              <form class="inline" method="post" action="/codes/{{ c.id }}/delete"
+                    onsubmit="return confirm('Удалить код {{ format_code(c.code) }}?');">
+                <button class="danger" type="submit">Удалить</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="empty noprint" style="margin-top:12px">Для раздачи: нажмите «Печать» в браузере — служебные кнопки скроются, останется таблица с кодами.</p>
+      {% else %}
+      <p class="empty">Кодов пока нет. Сгенерируйте набор выше.</p>
+      {% endif %}
+    </div>
+  </main>
+</body>
+</html>

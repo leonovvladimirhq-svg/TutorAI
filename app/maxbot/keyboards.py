@@ -151,6 +151,8 @@ def mentor_confirm_kb(goal_id: int) -> "object":
 def mentor_menu_kb() -> "object":
     kb = InlineKeyboardBuilder()
     kb.add(CallbackButton(text=texts.BTN_MENTOR_STUDENTS, payload="mstudents"))
+    kb.add(CallbackButton(text=texts.BTN_MENTOR_REPORT_ALL, payload="mreport_all"))
+    kb.adjust(1)
     return kb.as_markup()
 
 
@@ -181,5 +183,16 @@ def reflect_outcome_kb() -> "object":
     kb.add(CallbackButton(text=texts.BTN_RO_PARTIAL, payload="ro:partial"))
     kb.add(CallbackButton(text=texts.BTN_RO_NOT, payload="ro:not_achieved"))
     kb.add(CallbackButton(text=texts.BTN_RO_IRRELEVANT, payload="ro:irrelevant"))
+    kb.add(CallbackButton(text=texts.BTN_REFLECT_FINISH, payload="rq:finish"))
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def reflect_question_kb() -> "object":
+    """Под каждым вопросом рефлексии: пропустить вопрос или завершить досрочно —
+    чтобы сценарий не ощущался бесконечным."""
+    kb = InlineKeyboardBuilder()
+    kb.add(CallbackButton(text=texts.BTN_REFLECT_SKIP, payload="rq:skip"))
+    kb.add(CallbackButton(text=texts.BTN_REFLECT_FINISH, payload="rq:finish"))
     kb.adjust(1)
     return kb.as_markup()

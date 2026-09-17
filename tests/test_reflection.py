@@ -29,3 +29,10 @@ def test_short_answer_is_probed_without_llm():
 def test_patterns_prompt_asks_student_first():
     # порядок: сначала студент сам формулирует, потом ИИ
     assert "потом" in r.PATTERNS_PROMPT.lower() or "затем" in r.PATTERNS_PROMPT.lower()
+
+
+def test_probe_limits_are_finite():
+    # доуточнений не больше одного на вопрос и ограниченное число на цель —
+    # сценарий не должен ощущаться бесконечным
+    assert r.MAX_PROBES_PER_QUESTION == 1
+    assert 1 <= r.MAX_PROBES_PER_GOAL <= 5

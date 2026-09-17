@@ -286,3 +286,25 @@ class AppSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class AccessCode(Base):
+    """Код доступа (16 цифр) — вход в систему без ручного назначения по MAX-ID.
+
+    Руководитель генерирует набор кодов в веб-панели и раздаёт их: студент вводит код
+    в боте и получает роль, записанную в коде. У студенческого кода может быть заранее
+    закреплён наставник — тогда привязка сохраняется даже после /forget_me
+    (код освобождается и его можно ввести заново).
+    """
+    __tablename__ = "access_code"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    role: Mapped[str] = mapped_column(String(32))
+    label: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    mentor_tg: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    used_by_tg: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
