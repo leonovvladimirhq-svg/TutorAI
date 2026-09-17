@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # entrypoint app/main_max.py. MAX доступен из YC (в отличие от Telegram).
     max_bot_token: str = ""
 
+    # Дашборд мониторинга проектов (http://89.169.146.175:8080). Пусто = ничего не шлём.
+    dashboard_url: str = ""
+    dashboard_token: str = ""
+
     # Database
     database_url: str = "postgresql+asyncpg://tutorai:change_me@db:5432/tutorai"
 

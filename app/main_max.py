@@ -15,7 +15,7 @@ from app.config import settings
 from app.db.seed import seed_profiles
 from app.db.session import AsyncSessionLocal
 from app.maxbot.handlers import dialogue, fallback, feedback, goals, mentor, profile, reflect, start, voice
-from app.maxbot.middleware import DbSessionMiddleware
+from app.maxbot.middleware import DashboardMiddleware, DbSessionMiddleware
 from app.bot import texts
 from app.db import crud
 from app.maxbot.common import send_to
@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 def build_dispatcher() -> Dispatcher:
     dp = Dispatcher()
+    # телеметрия в дашборд мониторинга — первой, чтобы засечь полное время обработки
+    dp.register_outer_middleware(DashboardMiddleware())
     # сессия БД на каждый апдейт (кладёт session в data для хендлеров)
     dp.register_outer_middleware(DbSessionMiddleware())
     # порядок роутеров важен: voice раньше dialogue/goals (иначе их текстовые
