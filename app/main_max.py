@@ -132,8 +132,10 @@ async def main() -> None:
             warnings.simplefilter("ignore", DeprecationWarning)
             await bot.set_my_commands(*BOT_COMMANDS)
         logger.info("Команды бота установлены: %s", ", ".join(c.name for c in BOT_COMMANDS))
-    except Exception:  # noqa: BLE001
-        logger.exception("Не удалось установить команды бота (не критично)")
+    except Exception as e:  # noqa: BLE001
+        # MAX убрал PATCH /me (404 method.not.found) — меню команд из кода больше не
+        # задать; команды работают и без меню. Одна строка в лог, без трассировки.
+        logger.warning("Команды бота не установлены (не критично): %s", e)
 
     asyncio.create_task(reflection_reminder_loop(bot))
     if settings.max_webhook_url:

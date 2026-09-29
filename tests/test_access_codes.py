@@ -45,3 +45,9 @@ def test_forget_me_text_filter():
     assert asyncio.run(f(_msg("Забыть меня"))) is True
     assert asyncio.run(f(_msg("forget me!"))) is True
     assert asyncio.run(f(_msg("не надо меня забывать"))) is False
+
+
+def test_forget_me_typo_accepted():
+    f = ForgetMeText()
+    assert asyncio.run(f(_msg("/forgot_me"))) is True
+    assert asyncio.run(f(_msg("forgot me"))) is True

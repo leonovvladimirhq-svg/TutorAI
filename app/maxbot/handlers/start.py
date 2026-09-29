@@ -230,7 +230,7 @@ async def cmd_my_data(event: MessageCreated, session: AsyncSession, context: Mem
 
 # Команда работает в любом состоянии диалога (роутер start — первый в цепочке),
 # плюс текстом «забыть меня» — в MAX меню команд не всегда под рукой.
-@router.message_created(Command("forget_me"))
+@router.message_created(Command(["forget_me", "forgot_me"]))
 @router.message_created(ForgetMeText())
 async def cmd_forget_me(event: MessageCreated, session: AsyncSession, context: MemoryContext) -> None:
     uid = event.from_user.user_id
