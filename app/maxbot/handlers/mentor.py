@@ -44,6 +44,20 @@ async def _own_student(session: AsyncSession, mentor_tg: int, app_user_id: int):
     return u
 
 
+async def _students_with_goals(session: AsyncSession, users) -> list:
+    """Из закреплённых студентов — те, кто прислал хотя бы одну цель.
+
+    Наставник видит в списке только тех, кто уже что-то отправил: пустой список
+    однозначно означает «пока никто ничего не прислал».
+    """
+    result = []
+    for u in users:
+        student = await crud.get_student_by_tg(session, u.telegram_id)
+        if student is not None and await crud.list_goals(session, student.id):
+            result.append(u)
+    return result
+
+
 async def _student_card(session: AsyncSession, u) -> str:
     student = await crud.get_student_by_tg(session, u.telegram_id)
     goals = await crud.list_goals(session, student.id) if student else []
@@ -66,11 +80,16 @@ async def my_students(event: MessageCallback, session: AsyncSession) -> None:
     if not await _is_mentor(session, tg):
         await ack(event, notification=texts.MENTOR_ONLY)
         return
-    users = await crud.list_students_of_mentor(session, tg)
-    if not users:
-        await edit(event, texts.MENTOR_NO_STUDENTS, mentor_menu_kb())
+    assigned = await crud.list_students_of_mentor(session, tg)
+    active = await _students_with_goals(session, assigned)
+    if not active:
+        # Пусто = никто ещё ничего не прислал (так и объясняем наставнику).
+        text = texts.MENTOR_NO_STUDENTS
+        if assigned:
+            text += texts.MENTOR_ASSIGNED_SILENT.format(n=len(assigned))
+        await edit(event, text, mentor_menu_kb())
         return
-    await edit(event, texts.MENTOR_PICK_STUDENT, mentor_students_kb(users))
+    await edit(event, texts.MENTOR_PICK_STUDENT, mentor_students_kb(active))
 
 
 @router.message_callback(F.callback.payload.startswith("mstud:"))
@@ -135,8 +154,12 @@ async def group_report(event: MessageCallback, session: AsyncSession) -> None:
     if mentor_user is None or mentor_user.role != ROLE_MENTOR:
         await ack(event, notification=texts.MENTOR_ONLY)
         return
-    if not await crud.list_students_of_mentor(session, tg):
-        await edit(event, texts.MENTOR_NO_STUDENTS, mentor_menu_kb())
+    assigned = await crud.list_students_of_mentor(session, tg)
+    if not await _students_with_goals(session, assigned):
+        text = texts.MENTOR_NO_STUDENTS
+        if assigned:
+            text += texts.MENTOR_ASSIGNED_SILENT.format(n=len(assigned))
+        await edit(event, text, mentor_menu_kb())
         return
     await ack(event, notification=texts.MENTOR_REPORT_BUILDING)
     try:
