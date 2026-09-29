@@ -63,6 +63,16 @@ async def show_main_menu(event) -> None:
     await reply(event, texts.MENU_TITLE, main_menu_kb())
 
 
+def format_goal_for_mentor(student_name: str, goal) -> str:
+    """Карточка цели для наставника (уведомление о новой цели и «ждут подтверждения»)."""
+    return texts.MENTOR_NEW_GOAL.format(
+        student=student_name, title=goal.title,
+        specific=goal.specific or "—", measurable=goal.measurable or "—",
+        achievable=goal.achievable or "—", relevant=goal.relevant or "—",
+        time_bound=goal.time_bound or "—",
+    )
+
+
 async def send_to(bot, user_id: int, text: str, kb=None) -> bool:
     """Отправить сообщение другому пользователю по его MAX-ID (уведомления между ролями).
 

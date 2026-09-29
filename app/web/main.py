@@ -89,6 +89,7 @@ async def dashboard(request: Request, session: AsyncSession = Depends(get_sessio
         request,
         "dashboard.html",
         {
+            "mentors_see_all": await crud.mentors_see_all(session),
             "users": users,
             "mentors": mentors,
             "goals_deadline": goals_deadline or "",
@@ -196,6 +197,21 @@ async def save_settings(
     return RedirectResponse("/dashboard?notice=Сроки+сохранены", status_code=303)
 
 
+@app.post("/settings/mentors-see-all")
+async def toggle_mentors_see_all(
+    request: Request,
+    value: str = Form("0"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Режим теста: каждый наставник видит всех студентов (1) / только закреплённых (0)."""
+    if not _is_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    on = value == "1"
+    await crud.set_setting(session, crud.MENTORS_SEE_ALL_KEY, "1" if on else "0")
+    notice = "Режим+теста+включён:+все+наставники+видят+всех+студентов" if on else "Режим+теста+выключен:+наставники+видят+только+закреплённых"
+    return RedirectResponse(f"/dashboard?notice={notice}", status_code=303)
+
+
 @app.get("/stats", response_class=HTMLResponse)
 async def stats(request: Request, session: AsyncSession = Depends(get_session)):
     """Сводка для академического руководителя: кто подтверждён, кто ничего не прислал."""
@@ -208,6 +224,7 @@ async def stats(request: Request, session: AsyncSession = Depends(get_session)):
         request,
         "stats.html",
         {
+            "mentors_see_all": await crud.mentors_see_all(session),
             "rows": rows,
             "goals_deadline": goals_deadline,
             "reflection_deadline": reflection_deadline,

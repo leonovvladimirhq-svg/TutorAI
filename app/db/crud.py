@@ -377,6 +377,50 @@ async def list_mentors(session: AsyncSession) -> list[AppUser]:
     return list(result.all())
 
 
+# Режим теста: каждый наставник видит всех студентов, получает все новые цели на
+# подтверждение и собирает общий отчёт по всем. Включается в веб-панели
+# (app_setting mentors_see_all = "1"); выключен — работает закрепление app_user.mentor_tg.
+MENTORS_SEE_ALL_KEY = "mentors_see_all"
+
+
+async def mentors_see_all(session: AsyncSession) -> bool:
+    return (await get_setting(session, MENTORS_SEE_ALL_KEY)) == "1"
+
+
+async def list_all_students(session: AsyncSession) -> list[AppUser]:
+    result = await session.scalars(
+        select(AppUser).where(AppUser.role == "student").order_by(AppUser.full_name, AppUser.id)
+    )
+    return list(result.all())
+
+
+async def students_visible_to_mentor(session: AsyncSession, mentor_tg: int) -> list[AppUser]:
+    """Студенты, которых видит наставник: все (режим теста) или только закреплённые."""
+    if await mentors_see_all(session):
+        return await list_all_students(session)
+    return await list_students_of_mentor(session, mentor_tg)
+
+
+async def mentor_sees_student(session: AsyncSession, mentor_tg: int, student_user: AppUser | None) -> bool:
+    """Может ли пользователь mentor_tg (обязательно с ролью наставника) работать с этим студентом."""
+    if student_user is None or student_user.role != "student":
+        return False
+    if await get_role_by_tg(session, mentor_tg) != "mentor":
+        return False
+    if await mentors_see_all(session):
+        return True
+    return student_user.mentor_tg == mentor_tg
+
+
+async def mentors_to_notify(session: AsyncSession, student_user: AppUser | None) -> list[int]:
+    """Кому отправить новую цель студента на подтверждение (MAX-ID наставников)."""
+    if await mentors_see_all(session):
+        return [m.telegram_id for m in await list_mentors(session)]
+    if student_user is not None and student_user.mentor_tg:
+        return [student_user.mentor_tg]
+    return []
+
+
 async def list_students_of_mentor(session: AsyncSession, mentor_tg: int) -> list[AppUser]:
     """Студенты (записи реестра ролей), закреплённые за наставником."""
     result = await session.scalars(

@@ -83,6 +83,26 @@
     </div>
 
     <div class="card">
+      <h2>Кого видят наставники</h2>
+      {% if mentors_see_all %}
+      <p style="margin:0 0 12px"><b style="color:#1e8449">Режим теста включён:</b> каждый наставник видит
+        всех студентов, получает каждую новую цель на подтверждение (решает тот, кто ответит первым)
+        и собирает общий отчёт по всем. Колонка «Наставник» ниже сейчас ни на что не влияет.</p>
+      <form method="post" action="/settings/mentors-see-all">
+        <input type="hidden" name="value" value="0">
+        <button class="ghost" type="submit">Выключить: каждый видит только закреплённых</button>
+      </form>
+      {% else %}
+      <p style="margin:0 0 12px">Каждый наставник видит только закреплённых за ним студентов
+        (колонка «Наставник» ниже или наставник, закреплённый за кодом доступа).</p>
+      <form method="post" action="/settings/mentors-see-all">
+        <input type="hidden" name="value" value="1">
+        <button type="submit">Включить режим теста: все наставники видят всех</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <div class="card">
       <h2>Назначить роль</h2>
       <form method="post" action="/users">
         <div class="row">

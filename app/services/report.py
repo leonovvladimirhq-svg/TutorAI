@@ -35,6 +35,7 @@ BAD = RGBColor(0xC0, 0x39, 0x2B)
 
 _STATUS_RU = {"draft": "черновик", "active": "активна", "done": "достигнута", "dropped": "снята"}
 _CONFIRM_RU = {"pending": ("ждёт подтверждения", MID), "confirmed": ("подтверждена", OK), "rejected": ("возвращена на доработку", BAD)}
+ALL_MENTORS_LABEL = "все наставники (режим теста)"
 _OUTCOME_COLOR = {"achieved": OK, "partial": MID, "not_achieved": BAD, "irrelevant": GREY}
 
 CRITERIA = [
@@ -133,7 +134,8 @@ async def _load_student(session: AsyncSession, app_user) -> dict:
 
 
 async def _render_student(doc, session: AsyncSession, data: dict, *, mentor, goals_deadline, reflection_deadline,
-                          title_level: int = 1, prefix: str = "", intro: bool = False) -> None:
+                          title_level: int = 1, prefix: str = "", intro: bool = False,
+                          mentor_label: str | None = None) -> None:
     """Карта целей одного студента. В общем отчёте prefix — номер раздела («2.3 »)."""
     app_user, goals, refl, grefl, name = data["app_user"], data["goals"], data["refl"], data["grefl"], data["name"]
     h = 1 if title_level == 1 else title_level
@@ -141,7 +143,7 @@ async def _render_student(doc, session: AsyncSession, data: dict, *, mentor, goa
     _kv_table(doc, [
         ("Студент", name),
         ("ID в MAX", str(app_user.telegram_id)),
-        ("Наставник", (mentor.full_name or str(mentor.telegram_id)) if mentor else "не назначен"),
+        ("Наставник", mentor_label or ((mentor.full_name or str(mentor.telegram_id)) if mentor else "не назначен")),
         ("Срок подачи целей", goals_deadline or "не задан"),
         ("Срок рефлексии", reflection_deadline or "не задан"),
         ("Целей поставлено", str(len(goals))),
@@ -267,8 +269,9 @@ async def build_student_report(session: AsyncSession, app_user) -> tuple[bytes, 
     p = doc.add_paragraph()
     _run(p, "TutorAI · ИИ-наставник · Школа коммуникаций НИУ ВШЭ", color=GREY, size=10)
     p.paragraph_format.space_after = Pt(10)
+    label = ALL_MENTORS_LABEL if await crud.mentors_see_all(session) else None
     await _render_student(doc, session, data, mentor=mentor, goals_deadline=goals_deadline,
-                          reflection_deadline=reflection_deadline, intro=True)
+                          reflection_deadline=reflection_deadline, intro=True, mentor_label=label)
     _footer(doc)
 
     buf = BytesIO()
@@ -278,7 +281,8 @@ async def build_student_report(session: AsyncSession, app_user) -> tuple[bytes, 
 
 async def build_group_report(session: AsyncSession, mentor_user) -> tuple[bytes, str, int]:
     """Общий .docx по всем студентам наставника. Возвращает (bytes, имя файла, число студентов)."""
-    users = await crud.list_students_of_mentor(session, mentor_user.telegram_id)
+    users = await crud.students_visible_to_mentor(session, mentor_user.telegram_id)
+    label = ALL_MENTORS_LABEL if await crud.mentors_see_all(session) else None
     goals_deadline = await crud.get_setting(session, "goals_deadline")
     reflection_deadline = await crud.get_setting(session, "reflection_deadline")
     datas = [await _load_student(session, u) for u in users]
@@ -294,7 +298,7 @@ async def build_group_report(session: AsyncSession, mentor_user) -> tuple[bytes,
     total_goals = sum(len(d["goals"]) for d in datas)
     _kv_table(doc, [
         ("Наставник", mentor_name),
-        ("Студентов закреплено", str(len(datas))),
+        ("Студентов в отчёте", str(len(datas)) + (" (режим теста: все студенты)" if label else "")),
         ("Целей всего", str(total_goals)),
         ("Подтверждено наставником", str(sum(1 for d in datas for g in d["goals"] if g.confirm_status == "confirmed"))),
         ("Прошли подведение итогов", f"{sum(1 for d in datas if d['refl'])} из {len(datas)}"),
@@ -350,7 +354,8 @@ async def build_group_report(session: AsyncSession, mentor_user) -> tuple[bytes,
             doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
         doc.add_heading(f"2.{n}. {d['name']}", level=1)
         await _render_student(doc, session, d, mentor=mentor_user, goals_deadline=goals_deadline,
-                              reflection_deadline=reflection_deadline, title_level=2, prefix=f"2.{n}.")
+                              reflection_deadline=reflection_deadline, title_level=2, prefix=f"2.{n}.",
+                              mentor_label=label)
     _footer(doc)
 
     buf = BytesIO()

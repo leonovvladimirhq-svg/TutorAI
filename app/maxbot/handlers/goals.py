@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import texts
 from app.db import crud
-from app.maxbot.common import ack, clear_markup, reply, send_to
+from app.maxbot.common import ack, clear_markup, format_goal_for_mentor, reply, send_to
 from app.maxbot.keyboards import (
     feedback_rating_kb,
     goal_draft_kb,
@@ -109,21 +109,21 @@ async def _evaluate_and_coach(
 
 
 async def _notify_mentor(event, session: AsyncSession, student, goal) -> None:
-    """Контур подтверждения: отправить новую цель закреплённому наставнику с кнопками."""
+    """Контур подтверждения: отправить новую цель наставнику (или всем наставникам —
+    в режиме теста) с кнопками. Решает тот, кто нажмёт первым; у остальных кнопки
+    ответят «уже рассмотрена»."""
     app_user = await crud.get_app_user_by_tg(session, event.from_user.user_id)
-    mentor_tg = app_user.mentor_tg if app_user else None
-    if not mentor_tg:
+    mentor_ids = await crud.mentors_to_notify(session, app_user)
+    if not mentor_ids:
         await reply(event, texts.GOAL_NO_MENTOR)
         return
     student_name = (app_user.full_name if app_user and app_user.full_name else f"ID {event.from_user.user_id}")
-    text = texts.MENTOR_NEW_GOAL.format(
-        student=student_name, title=goal.title,
-        specific=goal.specific or "—", measurable=goal.measurable or "—",
-        achievable=goal.achievable or "—", relevant=goal.relevant or "—",
-        time_bound=goal.time_bound or "—",
-    )
-    ok = await send_to(event.bot, mentor_tg, text, mentor_confirm_kb(goal.id))
-    await reply(event, texts.GOAL_SENT_TO_MENTOR if ok else texts.GOAL_NO_MENTOR)
+    text = format_goal_for_mentor(student_name, goal)
+    delivered = 0
+    for mentor_tg in mentor_ids:
+        if await send_to(event.bot, mentor_tg, text, mentor_confirm_kb(goal.id)):
+            delivered += 1
+    await reply(event, texts.GOAL_SENT_TO_MENTOR if delivered else texts.GOAL_NO_MENTOR)
 
 
 @router.message_callback(F.callback.payload == "menu:goals")

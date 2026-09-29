@@ -18,8 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot import texts
 from app.db import crud
-from app.maxbot.common import ack, clear_markup, edit, reply, send_to
-from app.maxbot.keyboards import mentor_menu_kb, mentor_student_kb, mentor_students_kb
+from app.maxbot.common import ack, clear_markup, edit, format_goal_for_mentor, reply, send_to
+from app.maxbot.keyboards import mentor_confirm_kb, mentor_menu_kb, mentor_student_kb, mentor_students_kb
 from app.maxbot.states import MentorReject
 from app.services import report
 from app.services.events import log_event
@@ -36,12 +36,29 @@ async def _is_mentor(session: AsyncSession, tg: int) -> bool:
 
 
 async def _own_student(session: AsyncSession, mentor_tg: int, app_user_id: int):
-    """Студент (запись реестра) принадлежит этому наставнику — иначе None."""
+    """Студент (запись реестра), с которым этот наставник может работать, — иначе None.
+
+    Закреплённый за ним, либо любой — в режиме теста «все наставники видят всех»."""
     from app.db.models import AppUser
     u = await session.get(AppUser, app_user_id)
-    if u is None or u.role != "student" or u.mentor_tg != mentor_tg:
+    if not await crud.mentor_sees_student(session, mentor_tg, u):
         return None
     return u
+
+
+async def _empty_text(session: AsyncSession, visible) -> str:
+    """Пустой список: «никто ещё ничего не прислал» + сколько студентов уже в боте."""
+    text = texts.MENTOR_NO_STUDENTS
+    if visible:
+        tpl = texts.MENTOR_ALL_SILENT if await crud.mentors_see_all(session) else texts.MENTOR_ASSIGNED_SILENT
+        text += tpl.format(n=len(visible))
+    return text
+
+
+async def _pending_goals(session: AsyncSession, u) -> list:
+    student = await crud.get_student_by_tg(session, u.telegram_id)
+    goals = await crud.list_goals(session, student.id) if student else []
+    return [g for g in goals if g.confirm_status == "pending" and g.status != "dropped"]
 
 
 async def _students_with_goals(session: AsyncSession, users) -> list:
@@ -80,14 +97,11 @@ async def my_students(event: MessageCallback, session: AsyncSession) -> None:
     if not await _is_mentor(session, tg):
         await ack(event, notification=texts.MENTOR_ONLY)
         return
-    assigned = await crud.list_students_of_mentor(session, tg)
-    active = await _students_with_goals(session, assigned)
+    visible = await crud.students_visible_to_mentor(session, tg)
+    active = await _students_with_goals(session, visible)
     if not active:
         # Пусто = никто ещё ничего не прислал (так и объясняем наставнику).
-        text = texts.MENTOR_NO_STUDENTS
-        if assigned:
-            text += texts.MENTOR_ASSIGNED_SILENT.format(n=len(assigned))
-        await edit(event, text, mentor_menu_kb())
+        await edit(event, await _empty_text(session, visible), mentor_menu_kb())
         return
     await edit(event, texts.MENTOR_PICK_STUDENT, mentor_students_kb(active))
 
@@ -99,7 +113,30 @@ async def student_card(event: MessageCallback, session: AsyncSession) -> None:
     if u is None:
         await ack(event, notification=texts.MENTOR_ONLY)
         return
-    await edit(event, await _student_card(session, u), mentor_student_kb(u.id))
+    pending = await _pending_goals(session, u)
+    await edit(event, await _student_card(session, u), mentor_student_kb(u.id, len(pending)))
+
+
+@router.message_callback(F.callback.payload.startswith("mpending:"))
+async def student_pending(event: MessageCallback, session: AsyncSession) -> None:
+    """Цели, ждущие решения, — каждая отдельным сообщением с кнопками «Подтвердить / Отклонить».
+
+    Нужна, когда цель поставлена раньше, чем наставник впервые открыл бота:
+    уведомление в момент постановки до него тогда не дошло."""
+    tg = event.from_user.user_id
+    u = await _own_student(session, tg, int(event.callback.payload.split(":", 1)[1]))
+    if u is None:
+        await ack(event, notification=texts.MENTOR_ONLY)
+        return
+    pending = await _pending_goals(session, u)
+    if not pending:
+        await ack(event, notification=texts.MENTOR_PENDING_NONE)
+        return
+    await ack(event)
+    name = u.full_name or f"ID {u.telegram_id}"
+    await reply(event, texts.MENTOR_PENDING_INTRO.format(name=name))
+    for g in pending:
+        await reply(event, format_goal_for_mentor(name, g), mentor_confirm_kb(g.id))
 
 
 @router.message_callback(F.callback.payload.startswith("mgoals:"))
@@ -120,8 +157,9 @@ async def student_goals(event: MessageCallback, session: AsyncSession) -> None:
                 confirm=texts.CONFIRM_RU.get(g.confirm_status, g.confirm_status),
             ) for g in goals
         )
+    pending = sum(1 for g in goals if g.confirm_status == "pending" and g.status != "dropped")
     await edit(event, texts.MENTOR_GOALS_HEADER.format(name=u.full_name or u.telegram_id, body=body),
-               mentor_student_kb(u.id))
+               mentor_student_kb(u.id, pending))
 
 
 @router.message_callback(F.callback.payload.startswith("mreport:"))
@@ -154,12 +192,9 @@ async def group_report(event: MessageCallback, session: AsyncSession) -> None:
     if mentor_user is None or mentor_user.role != ROLE_MENTOR:
         await ack(event, notification=texts.MENTOR_ONLY)
         return
-    assigned = await crud.list_students_of_mentor(session, tg)
-    if not await _students_with_goals(session, assigned):
-        text = texts.MENTOR_NO_STUDENTS
-        if assigned:
-            text += texts.MENTOR_ASSIGNED_SILENT.format(n=len(assigned))
-        await edit(event, text, mentor_menu_kb())
+    visible = await crud.students_visible_to_mentor(session, tg)
+    if not await _students_with_goals(session, visible):
+        await edit(event, await _empty_text(session, visible), mentor_menu_kb())
         return
     await ack(event, notification=texts.MENTOR_REPORT_BUILDING)
     try:
@@ -186,7 +221,7 @@ async def _goal_for_mentor(session: AsyncSession, mentor_tg: int, goal_id: int):
     if student is None or student.telegram_id is None:
         return None, None
     app_user = await crud.get_app_user_by_tg(session, student.telegram_id)
-    if app_user is None or app_user.mentor_tg != mentor_tg:
+    if not await crud.mentor_sees_student(session, mentor_tg, app_user):
         return None, None
     return goal, student
 

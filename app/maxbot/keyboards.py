@@ -166,9 +166,11 @@ def mentor_students_kb(users) -> "object":
     return kb.as_markup()
 
 
-def mentor_student_kb(user_id: int) -> "object":
-    """Карточка студента: отчёт / цели / назад к списку."""
+def mentor_student_kb(user_id: int, pending: int = 0) -> "object":
+    """Карточка студента: [подтвердить ждущие цели] / отчёт / цели / назад к списку."""
     kb = InlineKeyboardBuilder()
+    if pending:
+        kb.add(CallbackButton(text=texts.BTN_MENTOR_PENDING.format(n=pending), payload=f"mpending:{user_id}"))
     kb.add(CallbackButton(text=texts.BTN_MENTOR_REPORT, payload=f"mreport:{user_id}"))
     kb.add(CallbackButton(text=texts.BTN_MENTOR_GOALS, payload=f"mgoals:{user_id}"))
     kb.add(CallbackButton(text=texts.BTN_MENTOR_BACK, payload="mstudents"))

@@ -74,7 +74,7 @@
           {% for r in rows %}
           <tr>
             <td>{{ r.user.full_name or "—" }}<br><code>{{ r.user.telegram_id }}</code></td>
-            <td>{% if r.mentor %}{{ r.mentor.full_name or r.mentor.telegram_id }}{% else %}<span class="bad">не назначен</span>{% endif %}</td>
+            <td>{% if mentors_see_all %}<span class="muted">все (режим теста)</span>{% elif r.mentor %}{{ r.mentor.full_name or r.mentor.telegram_id }}{% else %}<span class="bad">не назначен</span>{% endif %}</td>
             <td>{% if r.has_consent %}<span class="ok">да</span>{% else %}<span class="muted">нет</span>{% endif %}</td>
             <td>{% if r.goals_total %}{{ r.goals_total }}{% else %}<span class="bad">0 — ничего не прислал</span>{% endif %}</td>
             <td>{% if r.goals_confirmed %}<span class="ok">{{ r.goals_confirmed }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
