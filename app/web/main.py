@@ -63,6 +63,13 @@ async def login_submit(
     username: str = Form(...),
     password: str = Form(...),
 ):
+    if not settings.web_admin_password:
+        # Пустой пароль в .env = вход для любого; лучше честно отказать.
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"error": "Пароль панели не задан (WEB_ADMIN_PASSWORD в .env) — вход отключён"},
+            status_code=503,
+        )
     if username == settings.web_admin_user and password == settings.web_admin_password:
         request.session["authed"] = True
         return RedirectResponse("/dashboard", status_code=303)
