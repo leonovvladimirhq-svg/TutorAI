@@ -1,0 +1,30 @@
+# Спецификация Yandex API Gateway "tutorai-max-webhook" (id d5dionud12kserpjrtv6) — HTTPS-фасад вебхука MAX.
+# MAX требует HTTPS на 443 с доверенным сертификатом; шлюз даёт его без своего домена.
+# Заголовок X-Max-Bot-Api-Secret нужно пробрасывать ЯВНО (иначе бот отвечает 403).
+# Применить: yc serverless api-gateway update <id> --spec deploy/apigw-webhook.yaml
+openapi: 3.0.0
+info:
+  title: tutorai-max-webhook
+  version: "1.1"
+paths:
+  /max/webhook:
+    post:
+      summary: MAX Bot API webhook -> tutorai bot_max (HTTP :8090)
+      parameters:
+        - in: header
+          name: X-Max-Bot-Api-Secret
+          required: false
+          schema:
+            type: string
+      x-yc-apigateway-integration:
+        type: http
+        url: http://89.169.157.225:8090/max/webhook
+        method: POST
+        headers:
+          X-Max-Bot-Api-Secret: '{X-Max-Bot-Api-Secret}'
+        timeouts:
+          connect: 5
+          read: 30
+      responses:
+        "200":
+          description: ok

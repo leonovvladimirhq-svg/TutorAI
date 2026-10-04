@@ -1,0 +1,18 @@
+#cloud-config
+# user-data прода (cloud-init) — копия из метаданных VM tutorai-bot-v2 на 04.10.2026.
+# Применяется ТОЛЬКО при первой загрузке нового инстанса (rescue/пересоздание) — см. docs/RESTORE.md.
+# bootcmd маскирует docker при каждой загрузке — решение владельца облака: SSH поднимается
+# гарантированно, стек запускают вручную после осмотра (docs/RESTORE.md, раздел «Б»).
+# tutorai-bot-v2 — both keys + docker masked at early boot so SSH is guaranteed
+# even if the stack starves the box. Unmask manually after inspection:
+#   sudo systemctl unmask docker.service docker.socket && sudo systemctl start docker
+users:
+  - name: yc-user
+    groups: sudo
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    shell: /bin/bash
+    ssh_authorized_keys:
+      # - ssh-ed25519 <публичный ключ Ивана — взять из метаданных текущей VM>
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICaZDMniVP0Mim4cB2kDpwOUxmhRi04lc9R27CikUU2 tutorai-deploy
+bootcmd:
+  - systemctl mask docker.service docker.socket
